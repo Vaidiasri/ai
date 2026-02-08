@@ -1,32 +1,23 @@
+import CTA from "@/components/landing/CTA";
+import Footer from "@/components/landing/Footer";
+import Header from "@/components/landing/Header";
+import Hero from "@/components/landing/Hero";
+import HowItWorks from "@/components/landing/HowItWorks";
+import PricingSection from "@/components/landing/PricingSection";
+import WhatToAsk from "@/components/landing/WhatToAsk";
 import { Button } from "@/components/ui/button";
-import {
-  SignUpButton,
-  SignInButton,
-  SignedIn,
-  SignedOut,
-  UserButton,
-} from "@clerk/nextjs";
 export default function Home() {
   return (
     <>
-      <div>
-        <h1>DetWise-AI Powered Dental Assistant</h1>
-        <p>
-          AI-powered dental assistant that helps dentists diagnose and treat
-          dental problems.
-        </p>
-        <SignedOut>
-          <SignUpButton mode="modal">
-            <Button>Sign Up</Button>
-          </SignUpButton>
-          <SignInButton mode="modal">
-            <Button>Sign In</Button>
-          </SignInButton>
-        </SignedOut>
-        <SignedIn>
-          <UserButton />
-        </SignedIn>
-      </div>
+     <div className="min-h-screen bg-backgoround">
+      <Header/>
+      <Hero/>
+      <HowItWorks/>
+      <WhatToAsk/>
+      <PricingSection/>
+      <CTA/>
+      <Footer/>
+     </div>
     </>
   );
 }
