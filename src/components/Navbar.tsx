@@ -14,9 +14,9 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 
-// --- Types & Constants ---
+// ─── Types & Config ─────────────────────────────────────────────
 interface NavLink {
   href: string;
   label: string;
@@ -32,7 +32,7 @@ const STATIC_LINKS: NavLink[] = [
 
 const ADMIN_LINK: NavLink = { href: "/admin", label: "Admin", icon: Settings };
 
-// --- Main Component ---
+// ─── Component ──────────────────────────────────────────────────
 const Navbar = () => {
   const pathname = usePathname();
   const { user } = useUser();
@@ -43,43 +43,44 @@ const Navbar = () => {
     (email) => email.emailAddress === adminEmail,
   );
 
-  // Memoized navigation links
   const navLinks = React.useMemo(() => {
     return isAdmin ? [...STATIC_LINKS, ADMIN_LINK] : STATIC_LINKS;
   }, [isAdmin]);
 
+  const closeMobile = useCallback(() => setIsMobileMenuOpen(false), []);
+
+  // Don't render on landing
   if (pathname === "/") return null;
 
   return (
     <nav
       aria-label="Main Navigation"
-      className="fixed top-0 right-0 left-0 z-50 px-6 py-4 bg-zinc-950/50 backdrop-blur-2xl border-b border-white/5 transition-all duration-500 supports-[backdrop-filter]:bg-zinc-950/20"
+      className="fixed top-0 inset-x-0 z-50 px-4 sm:px-6 py-3 bg-[#0a0c14]/70 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_1px_40px_rgba(0,0,0,0.4)] transition-all duration-500"
     >
-      <div className="max-w-7xl mx-auto grid grid-cols-[1fr_auto_1fr] items-center h-full relative">
-        {/* Left: Branding */}
-        <div className="flex justify-start items-center">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 group focus:outline-none focus:ring-2 focus:ring-orange-500/50 rounded-lg"
-            aria-label="Go to Dashboard"
-          >
-            <div className="w-8 h-8 relative transition-transform duration-300 group-hover:scale-110">
-              <Image
-                src="/logo.png"
-                alt="FullStackAI Logo"
-                fill
-                className="object-contain"
-                priority
-              />
-            </div>
-            <span className="text-lg font-bold tracking-wide bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent group-hover:to-white transition-all duration-300">
-              FullStackAI
-            </span>
-          </Link>
-        </div>
+      <div className="max-w-[1280px] mx-auto flex items-center justify-between">
+        {/* ── Logo ───────────────────────────────────────────── */}
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2.5 group focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/40 rounded-lg"
+          aria-label="Go to Dashboard"
+        >
+          <div className="w-8 h-8 relative transition-transform duration-300 group-hover:scale-105">
+            <Image
+              src="/logo.png"
+              alt="FullStackAI Logo"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+          <span className="text-lg font-bold tracking-tight text-white/90 group-hover:text-white transition-colors duration-300">
+            FullStackAI
+            <span className="text-purple-400 ml-[1px]">.</span>
+          </span>
+        </Link>
 
-        {/* Center: Desktop Navigation (Grid placement: col-start-2) */}
-        <div className="hidden md:flex items-center justify-center gap-1">
+        {/* ── Desktop Nav ────────────────────────────────────── */}
+        <div className="hidden md:flex items-center gap-0.5">
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
@@ -87,65 +88,100 @@ const Navbar = () => {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`relative flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 group focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${
-                  isActive
-                    ? "text-white bg-white/5 border border-white/10 shadow-[0_0_15px_-3px_rgba(249,115,22,0.1)]"
-                    : "text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent"
-                }`}
+                className={`
+                  relative flex items-center gap-2 px-4 py-2 rounded-full
+                  text-[0.8125rem] font-medium tracking-wide
+                  transition-all duration-300 group
+                  focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/40
+                  ${
+                    isActive
+                      ? "text-white bg-white/[0.06] border border-white/[0.08] shadow-[0_0_20px_-4px_rgba(168,85,247,0.12)]"
+                      : "text-zinc-400 hover:text-white hover:bg-white/[0.04] border border-transparent"
+                  }
+                `}
                 aria-current={isActive ? "page" : undefined}
               >
+                {/* Active glow pulse */}
                 {isActive && (
-                  <div className="absolute inset-0 bg-gradient-to-tr from-orange-500/10 to-transparent blur-lg rounded-full animate-pulse-slow pointer-events-none" />
+                  <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/[0.08] to-transparent rounded-full blur-md pointer-events-none animate-pulse" />
                 )}
                 <Icon
-                  className={`w-4 h-4 relative z-10 transition-colors duration-300 ${isActive ? "text-orange-400" : "text-zinc-500 group-hover:text-white"}`}
+                  className={`w-4 h-4 relative z-10 transition-all duration-300 ${
+                    isActive
+                      ? "text-purple-400"
+                      : "text-zinc-500 group-hover:text-zinc-300"
+                  }`}
+                  strokeWidth={isActive ? 2.2 : 1.8}
                 />
-                <span className="relative z-10 text-sm font-medium tracking-tight">
-                  {link.label}
-                </span>
+                <span className="relative z-10">{link.label}</span>
               </Link>
             );
           })}
         </div>
 
-        {/* Right: User Section */}
-        <div className="flex justify-end items-center gap-4">
-          <div className="hidden md:flex flex-col items-end mr-2 text-right">
-            <span className="text-sm font-semibold text-white/90 leading-tight">
+        {/* ── Right Section ──────────────────────────────────── */}
+        <div className="flex items-center gap-3">
+          {/* User Info — Desktop only */}
+          <div className="hidden md:flex flex-col items-end mr-1 text-right">
+            <span className="text-[0.8125rem] font-semibold text-white/85 leading-tight truncate max-w-[140px]">
               {user?.fullName || "Guest User"}
             </span>
-            <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
+            <span className="text-[0.625rem] text-zinc-500 font-medium uppercase tracking-[0.06em]">
               {user?.primaryEmailAddress?.emailAddress}
             </span>
           </div>
 
-          <div className="p-[2px] rounded-full bg-gradient-to-tr from-orange-500/20 via-transparent to-white/5 transition-all duration-300 hover:from-orange-500/40">
+          {/* Avatar */}
+          <div className="p-[2px] rounded-full bg-gradient-to-tr from-purple-500/25 via-transparent to-white/[0.06] transition-all duration-300 hover:from-purple-500/40">
             <UserButton
               afterSignOutUrl="/"
               appearance={{
                 elements: {
                   avatarBox:
-                    "w-9 h-9 border-2 border-zinc-900 ring-1 ring-white/10 hover:ring-orange-500/50 transition-all shadow-lg",
+                    "w-9 h-9 border-2 border-[#0a0c14] ring-1 ring-white/[0.08] hover:ring-purple-400/40 transition-all duration-300 shadow-lg",
                 },
               }}
             />
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile Hamburger */}
           <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2 text-zinc-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 rounded-lg transition-colors"
+            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+            className="md:hidden relative w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors duration-300 rounded-xl hover:bg-white/[0.05] cursor-pointer"
             aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
             aria-expanded={isMobileMenuOpen}
           >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            <span
+              className={`absolute transition-all duration-300 ${
+                isMobileMenuOpen
+                  ? "rotate-0 opacity-100"
+                  : "rotate-90 opacity-0"
+              }`}
+            >
+              <X size={20} strokeWidth={2} />
+            </span>
+            <span
+              className={`absolute transition-all duration-300 ${
+                isMobileMenuOpen
+                  ? "-rotate-90 opacity-0"
+                  : "rotate-0 opacity-100"
+              }`}
+            >
+              <Menu size={20} strokeWidth={2} />
+            </span>
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-full left-0 right-0 bg-zinc-950/95 backdrop-blur-2xl border-b border-white/10 p-4 flex flex-col gap-2 animate-in slide-in-from-top-2 z-40 shadow-2xl">
+      {/* ── Mobile Menu ────────────────────────────────────── */}
+      <div
+        className={`
+          md:hidden overflow-hidden
+          transition-all duration-400 ease-out
+          ${isMobileMenuOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"}
+        `}
+      >
+        <div className="px-2 pt-3 pb-4 mt-3 mx-2 rounded-2xl bg-[#0e1018]/90 backdrop-blur-2xl border border-white/[0.06] space-y-1 shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
@@ -153,22 +189,30 @@ const Navbar = () => {
               <Link
                 key={link.href}
                 href={link.href}
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all active:scale-[0.98] ${
-                  isActive
-                    ? "bg-white/10 text-white border border-white/5 shadow-inner"
-                    : "text-zinc-400 hover:text-white hover:bg-white/5"
-                }`}
+                onClick={closeMobile}
+                className={`
+                  flex items-center gap-3 px-4 py-3 rounded-xl
+                  text-[0.9375rem] font-medium
+                  transition-all duration-200 active:scale-[0.98]
+                  ${
+                    isActive
+                      ? "text-white bg-white/[0.06] border border-white/[0.06]"
+                      : "text-zinc-400 hover:text-white hover:bg-white/[0.04] border border-transparent"
+                  }
+                `}
               >
                 <Icon
-                  className={`w-5 h-5 ${isActive ? "text-orange-400" : "text-zinc-500"}`}
+                  className={`w-5 h-5 ${
+                    isActive ? "text-purple-400" : "text-zinc-500"
+                  }`}
+                  strokeWidth={isActive ? 2.2 : 1.8}
                 />
-                <span className="font-medium">{link.label}</span>
+                <span>{link.label}</span>
               </Link>
             );
           })}
         </div>
-      )}
+      </div>
     </nav>
   );
 };
