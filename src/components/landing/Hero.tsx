@@ -46,9 +46,8 @@ function Hero() {
 
                 {/* SUBTITLE */}
                 <p className="text-lg text-muted-foreground leading-relaxed max-w-xl font-medium">
-                  Chat with our AI dental assistant for instant advice, book
-                  smart appointments, and get personalized care recommendations.
-                  Available 24/7.
+                  Chat with our AI dental assistant for instant advice, book smart appointments, and
+                  get personalized care recommendations. Available 24/7.
                 </p>
               </div>
 
@@ -116,21 +115,14 @@ function Hero() {
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1">
                         {[1, 2, 3, 4, 5].map((star) => (
-                          <StarIcon
-                            key={star}
-                            className="h-4 w-4 fill-amber-400 text-amber-400"
-                          />
+                          <StarIcon key={star} className="h-4 w-4 fill-amber-400 text-amber-400" />
                         ))}
                       </div>
-                      <span className="text-sm font-bold text-foreground">
-                        4.9/5
-                      </span>
+                      <span className="text-sm font-bold text-foreground">4.9/5</span>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       Trusted by{" "}
-                      <span className="font-semibold text-foreground">
-                        1,200+ patients
-                      </span>
+                      <span className="font-semibold text-foreground">1,200+ patients</span>
                     </p>
                   </div>
                 </div>
