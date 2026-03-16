@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAvailableDoctors } from "@/lib/actions/doctors";
 import { bookAppointment } from "@/lib/actions/appointments";
 import { sendAppointmentConfirmationEmail } from "@/lib/services/email";
+import { parseVapiDate, normalizeVapiTime } from "@/lib/utils/vapi-utils";
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,8 +20,8 @@ export async function POST(req: NextRequest) {
     const { message } = body;
     
     console.log("------------------- VAPI REQUEST START -------------------");
-    console.log("Headers:", JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2));
-    console.log("Raw Body:", rawBody);
+    console.log("FULL VAPI MESSAGE:", JSON.stringify(message, null, 2));
+    console.log("VAPI HEADERS:", JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2));
 
     // Explicitly handle ping requests from Vapi dashboard validation
     if (message?.type === "ping") {
@@ -92,11 +93,19 @@ export async function POST(req: NextRequest) {
             }
           }
 
+          const rawDate = args.date || args.appointmentDate || args.day;
+          const rawTime = args.time || args.appointmentTime || args.slot;
+          
+          const parsedDate = parseVapiDate(rawDate);
+          const parsedTime = normalizeVapiTime(rawTime);
+
+          console.log(`[VAPI] Normalized Input -> Date: ${parsedDate}, Time: ${parsedTime}`);
+
           const appointment = await bookAppointment({
             ...args,
             doctorId,
-            date: args.date || args.appointmentDate || args.day,
-            time: args.time || args.appointmentTime || args.slot,
+            date: parsedDate,
+            time: parsedTime,
             reason: args.reason || "Voice assistant booking"
           }, userId);
           
@@ -113,7 +122,7 @@ export async function POST(req: NextRequest) {
 
       results.push({
         toolCallId: id,
-        result: JSON.stringify(result)
+        result: typeof result === 'string' ? result : JSON.stringify(result)
       });
     }
 
