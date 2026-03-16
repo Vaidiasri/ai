@@ -100,11 +100,21 @@ function VapiWidget() {
         const { FIRST_MESSAGE, SYSTEM_PROMPT } = await import("@/lib/vapi-prompt");
 
         // Re-introducing professional overrides with a valid model configuration
-        await vapi.start(assistantId!, {
+        console.log("Starting Vapi Call with User:", user?.id);
+
+        await (vapi as any).start(assistantId!, {
           firstMessage: FIRST_MESSAGE,
           variableValues: {
             name: user?.firstName || "Guest",
             userId: user?.id || "",
+          },
+          metadata: {
+            userId: user?.id || "",
+          },
+          customer: {
+            metadata: {
+              userId: user?.id || "",
+            }
           },
           model: {
             provider: "openai",

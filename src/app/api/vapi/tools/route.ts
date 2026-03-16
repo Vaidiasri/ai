@@ -66,51 +66,62 @@ export async function POST(req: NextRequest) {
           console.log(`[VAPI] Found ${doctors.length} doctors.`);
         } else if (name === "book_appointment") {
           console.log("[VAPI] Tool Called: book_appointment");
-          const userId = message?.variableValues?.userId || "";
-          console.log(`[VAPI] userId from metadata: [${userId}]`);
+          
+          // Hunt for userId in every possible location
+          const userId = 
+            message?.variableValues?.userId || 
+            message?.metadata?.userId || 
+            message?.customer?.metadata?.userId ||
+            body?.metadata?.userId ||
+            "";
+
+          console.log(`[VAPI] Resolved userId: [${userId}] (Found via search)`);
           
           if (!userId) {
-            console.warn("[VAPI] WARNING: No userId found in variableValues. Ensure Vapi Assistant is configured with a userId variable.");
-          }
+            console.warn("[VAPI] CRITICAL: No userId found in any payload location.");
+            result = { 
+              error: "Login required", 
+              message: "system_error: userId_missing. Please ensure the user is logged in.",
+              debug: { payload_keys: Object.keys(message || {}) }
+            };
+          } else {
+            console.log("[VAPI] Raw Arguments:", JSON.stringify(args, null, 2));
 
-          console.log("[VAPI] Raw Arguments:", JSON.stringify(args, null, 2));
-
-          let doctorId = args.doctorId || args.doctor_id || args.doctor;
-          
-          // If doctorId looks like a name (no dashes or too short), try to find the ID
-          if (doctorId && (typeof doctorId === 'string') && (doctorId.includes(" ") || !doctorId.includes("-"))) {
-            console.log(`[VAPI] doctorId looks like a name: "${doctorId}". Attempting to resolve ID...`);
-            const doctors = await getAvailableDoctors();
-            const found = doctors.find(d => 
-              d.name.toLowerCase().includes(doctorId.toLowerCase()) || 
-              doctorId.toLowerCase().includes(d.name.toLowerCase())
-            );
-            if (found) {
-              console.log(`[VAPI] Resolved "${doctorId}" to ID: ${found.id}`);
-              doctorId = found.id;
-            } else {
-              console.warn(`[VAPI] Could not resolve doctor name "${doctorId}" to an ID.`);
+            let doctorId = args.doctorId || args.doctor_id || args.doctor;
+            
+            // If doctorId looks like a name, try to find the ID
+            if (doctorId && (typeof doctorId === 'string') && (doctorId.includes(" ") || !doctorId.includes("-"))) {
+              console.log(`[VAPI] doctorId looks like a name: "${doctorId}". Attempting to resolve ID...`);
+              const doctors = await getAvailableDoctors();
+              const found = doctors.find(d => 
+                d.name.toLowerCase().includes(doctorId.toLowerCase()) || 
+                doctorId.toLowerCase().includes(d.name.toLowerCase())
+              );
+              if (found) {
+                console.log(`[VAPI] Resolved "${doctorId}" to ID: ${found.id}`);
+                doctorId = found.id;
+              }
             }
+
+            const rawDate = args.date || args.appointmentDate || args.day;
+            const rawTime = args.time || args.appointmentTime || args.slot;
+            
+            const parsedDate = parseVapiDate(rawDate);
+            const parsedTime = normalizeVapiTime(rawTime);
+
+            console.log(`[VAPI] Normalized Input -> Date: ${parsedDate}, Time: ${parsedTime}`);
+
+            const appointment = await bookAppointment({
+              ...args,
+              doctorId,
+              date: parsedDate,
+              time: parsedTime,
+              reason: args.reason || "Voice assistant booking"
+            }, userId);
+            
+            console.log(`[VAPI] Success! Appointment created: ${appointment.id}`);
+            result = { success: true, appointmentId: appointment.id, message: "Appointment booked successfully" };
           }
-
-          const rawDate = args.date || args.appointmentDate || args.day;
-          const rawTime = args.time || args.appointmentTime || args.slot;
-          
-          const parsedDate = parseVapiDate(rawDate);
-          const parsedTime = normalizeVapiTime(rawTime);
-
-          console.log(`[VAPI] Normalized Input -> Date: ${parsedDate}, Time: ${parsedTime}`);
-
-          const appointment = await bookAppointment({
-            ...args,
-            doctorId,
-            date: parsedDate,
-            time: parsedTime,
-            reason: args.reason || "Voice assistant booking"
-          }, userId);
-          
-          console.log(`[VAPI] Success! Appointment created: ${appointment.id}`);
-          result = { success: true, appointmentId: appointment.id, message: "Appointment booked successfully" };
         } else {
           result = { error: `Tool ${name} not found` };
         }
