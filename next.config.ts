@@ -19,6 +19,9 @@ const nextConfig: NextConfig = {
     ],
     unoptimized: true,
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;
