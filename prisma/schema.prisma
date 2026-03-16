@@ -53,60 +53,11 @@ model Appointment {
   doctor    Doctor            @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("appointments")
-}
-
-model public_Appointment {
-  id        String            @id
-  date      DateTime          @default(now())
-  time      String
-  duration  Int
-  status    AppointmentStatus @default(PENDING)
-  note      String?
-  reason    String?
-  createdAt DateTime          @default(now())
-  updatedAt DateTime
-  userId    String
-  doctorId  String
-  Doctor    public_Doctor     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  User      public_User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@index([date])
   @@index([doctorId])
   @@index([status])
   @@index([userId])
-  @@map("Appointment")
-}
-
-model public_Doctor {
-  id          String               @id
-  clerkId     String               @unique
-  firstName   String?
-  lastName    String?
-  phoneNumber String?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime
-  email       String               @unique
-  bio         String?
-  gender      Gender?
-  isActive    Boolean              @default(true)
-  Appointment public_Appointment[]
-
-  @@map("Doctor")
-}
-
-model public_User {
-  id          String               @id
-  clerkId     String               @unique
-  firstName   String?
-  lastName    String?
-  phoneNumber String?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime
-  email       String               @unique
-  Appointment public_Appointment[]
-
-  @@map("User")
+  @@map("appointments")
 }
 
 enum Gender {
@@ -117,6 +68,6 @@ enum Gender {
 enum AppointmentStatus {
   PENDING
   CONFIRMED
-  COMPLETED
   CANCELLED
+  COMPLETED
 }

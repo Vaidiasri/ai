@@ -146,10 +146,12 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
     }
 
     const user = await prisma.user.findUnique({ where: { clerkId: finalUserId } });
-    if (!user)
+    
+    if (!user) {
       throw new Error(
         "User not found. Please ensure your account is properly set up.",
       );
+    }
 
     const appointment = await prisma.appointment.create({
       data: {
@@ -173,9 +175,9 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
     });
 
     return transformAppointment(appointment);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error booking appointment:", error);
-    throw new Error("Failed to book appointment. Please try again later.");
+    throw error;
   }
 }
 

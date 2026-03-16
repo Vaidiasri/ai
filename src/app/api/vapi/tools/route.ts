@@ -6,7 +6,6 @@ import { sendAppointmentConfirmationEmail } from "@/lib/services/email";
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
-    console.log("Vapi Raw Request Body:", rawBody);
     
     let body;
     try {
@@ -19,10 +18,10 @@ export async function POST(req: NextRequest) {
     // Vapi sends tool calls in a specific format
     const { message } = body;
     
-    // New logging and tool call extraction logic
     console.log("------------------- VAPI REQUEST START -------------------");
-    console.log("Headers:", JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2));
-    console.log("Raw Body:", rawBody); // Use rawBody which was already read
+    if (process.env.NODE_ENV === 'development') {
+      console.log("Raw Body:", rawBody);
+    }
 
     // Explicitly handle ping requests from Vapi dashboard validation
     if (message?.type === "ping") {
@@ -31,24 +30,18 @@ export async function POST(req: NextRequest) {
     }
 
     if (!rawBody) {
-      console.log("Empty body received");
       return NextResponse.json({ error: "Empty request body" }, { status: 400 });
     }
 
-    // The original message?.type check is now integrated into the new tool call extraction
     const { toolCalls, toolCallList, toolWithToolCallList } = message || {};
     const calls = toolCalls || toolCallList || toolWithToolCallList || [];
-
-    console.log("Extracted Tool Calls:", JSON.stringify(calls, null, 2));
 
     const results = [];
 
     for (const toolCall of calls) {
-      // Vapi sometimes puts `id` at the root of `toolCall` instead of inside `function`
       const id = toolCall.id || toolCall.function?.id;
       const { name, arguments: argsJson, args: fallbackArgs } = toolCall.function || {}; 
       
-      // Parse arguments if they are a string, otherwise use raw args
       let args = fallbackArgs || {};
       if (typeof argsJson === 'string') {
         try { args = JSON.parse(argsJson); } catch (e) { }
@@ -58,11 +51,10 @@ export async function POST(req: NextRequest) {
 
       console.log(`Executing tool: ${name} with args:`, args);
 
-      let result; // Declare result here to be used in the push
+      let result;
       try {
         if (name === "get_doctors") {
           const doctors = await getAvailableDoctors();
-          console.log(`Found ${doctors.length} doctors`);
           result = doctors.map(d => ({
             id: d.id,
             name: d.name,
@@ -71,21 +63,18 @@ export async function POST(req: NextRequest) {
             isActive: d.isActive
           }));
         } else if (name === "book_appointment") {
-          // Extract userId from Vapi variableValues if available
           const userId = message?.variableValues?.userId || "";
-          console.log("Booking appointment with userId:", userId);
           
           if (!userId) {
-            console.warn("No userId provided in Vapi variableValues. This booking may fail if not handled by standard Auth.");
+            console.warn("No userId provided in Vapi variableValues.");
           }
 
           const appointment = await bookAppointment({
             ...args,
-            date: args.date, // Pass as string, action handles conversion
+            date: args.date,
             reason: args.reason || "Voice assistant booking"
           }, userId);
           
-          // Trigger email notification
           if (appointment.patientEmail) {
             console.log(`Sending confirmation email to ${appointment.patientEmail}`);
             sendAppointmentConfirmationEmail({
@@ -112,13 +101,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log("Vapi sending response:", JSON.stringify({ results }, null, 2));
     const response = NextResponse.json({
       message: "Tool executed",
       results: results
     });
 
-    // Add headers to bypass localtunnel reminder and allow Vapi
     response.headers.set("Bypass-Tunnel-Reminder", "true");
     response.headers.set("Access-Control-Allow-Origin", "*");
     response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS, GET");
@@ -130,12 +117,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ 
       error: "Internal server error", 
       details: error.message,
-      results: [] // Vapi expects a results array even on error sometimes
+      results: []
     }, { status: 500 });
   }
 }
 
-// Add GET handler for easy health checks
 export async function GET() {
   return NextResponse.json({ 
     status: "healthy", 
@@ -144,7 +130,6 @@ export async function GET() {
   });
 }
 
-// Add OPTIONS handler for CORS preflight
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 204 });
   response.headers.set("Access-Control-Allow-Origin", "*");
