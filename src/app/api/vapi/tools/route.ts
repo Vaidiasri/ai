@@ -3,6 +3,7 @@ import { getAvailableDoctors } from "@/lib/actions/doctors";
 import { bookAppointment } from "@/lib/actions/appointments";
 import { sendAppointmentConfirmationEmail } from "@/lib/services/email";
 import { parseVapiDate, normalizeVapiTime } from "@/lib/utils/vapi-utils";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,6 +65,30 @@ export async function POST(req: NextRequest) {
             isActive: d.isActive
           }));
           console.log(`[VAPI] Found ${doctors.length} doctors.`);
+        } else if (name === "get_current_user") {
+          console.log("[VAPI] Tool Called: get_current_user");
+          const userId = 
+            message?.variableValues?.userId || 
+            message?.metadata?.userId || 
+            message?.customer?.metadata?.userId ||
+            body?.metadata?.userId ||
+            "";
+          
+          if (userId) {
+            const user = await prisma.user.findUnique({ where: { clerkId: userId } });
+            result = { 
+              userId, 
+              name: user ? `${user.firstName} ${user.lastName}` : "Unknown (not in DB)",
+              isLoggedIn: true 
+            };
+          } else {
+            result = { 
+              userId: null, 
+              isLoggedIn: false, 
+              error: "No userId detected in Vapi payload" 
+            };
+          }
+          console.log("[VAPI] get_current_user result:", result);
         } else if (name === "book_appointment") {
           console.log("[VAPI] Tool Called: book_appointment");
           
