@@ -74,17 +74,6 @@ export async function POST(req: NextRequest) {
             date: args.date,
             reason: args.reason || "Voice assistant booking"
           }, userId);
-          
-          if (appointment.patientEmail) {
-            console.log(`Sending confirmation email to ${appointment.patientEmail}`);
-            sendAppointmentConfirmationEmail({
-              userEmail: appointment.patientEmail,
-              doctorName: appointment.doctorName,
-              appointmentDate: appointment.date,
-              appointmentTime: appointment.time,
-              appointmentType: appointment.reason
-            }).catch(err => console.error("Failed to send Vapi confirmation email:", err));
-          }
 
           result = { success: true, appointmentId: appointment.id, message: "Appointment booked successfully" };
         } else {

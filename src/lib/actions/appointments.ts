@@ -3,6 +3,7 @@
 import { auth } from "@clerk/nextjs/server";
 import type { AppointmentStatus } from "@prisma/client";
 import { prisma } from "../prisma";
+import { sendAppointmentConfirmationEmail } from "../services/email";
 
 function transformAppointment(appointment: any) {
   return {
@@ -174,7 +175,20 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
       },
     });
 
-    return transformAppointment(appointment);
+    const result = transformAppointment(appointment);
+
+    // Send confirmation email
+    if (result.patientEmail) {
+      sendAppointmentConfirmationEmail({
+        userEmail: result.patientEmail,
+        doctorName: result.doctorName,
+        appointmentDate: result.date,
+        appointmentTime: result.time,
+        appointmentType: result.reason
+      }).catch(err => console.error("Failed to send confirmation email:", err));
+    }
+
+    return result;
   } catch (error: any) {
     console.error("Error booking appointment:", error);
     throw error;
