@@ -19,9 +19,8 @@ export async function POST(req: NextRequest) {
     const { message } = body;
     
     console.log("------------------- VAPI REQUEST START -------------------");
-    if (process.env.NODE_ENV === 'development') {
-      console.log("Raw Body:", rawBody);
-    }
+    console.log("Headers:", JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2));
+    console.log("Raw Body:", rawBody);
 
     // Explicitly handle ping requests from Vapi dashboard validation
     if (message?.type === "ping") {
@@ -54,6 +53,7 @@ export async function POST(req: NextRequest) {
       let result;
       try {
         if (name === "get_doctors") {
+          console.log("[VAPI] Tool Called: get_doctors");
           const doctors = await getAvailableDoctors();
           result = doctors.map(d => ({
             id: d.id,
@@ -62,25 +62,52 @@ export async function POST(req: NextRequest) {
             phone: d.phone,
             isActive: d.isActive
           }));
+          console.log(`[VAPI] Found ${doctors.length} doctors.`);
         } else if (name === "book_appointment") {
+          console.log("[VAPI] Tool Called: book_appointment");
           const userId = message?.variableValues?.userId || "";
+          console.log(`[VAPI] userId from metadata: [${userId}]`);
           
           if (!userId) {
-            console.warn("No userId provided in Vapi variableValues.");
+            console.warn("[VAPI] WARNING: No userId found in variableValues. Ensure Vapi Assistant is configured with a userId variable.");
+          }
+
+          console.log("[VAPI] Raw Arguments:", JSON.stringify(args, null, 2));
+
+          let doctorId = args.doctorId || args.doctor_id || args.doctor;
+          
+          // If doctorId looks like a name (no dashes or too short), try to find the ID
+          if (doctorId && (typeof doctorId === 'string') && (doctorId.includes(" ") || !doctorId.includes("-"))) {
+            console.log(`[VAPI] doctorId looks like a name: "${doctorId}". Attempting to resolve ID...`);
+            const doctors = await getAvailableDoctors();
+            const found = doctors.find(d => 
+              d.name.toLowerCase().includes(doctorId.toLowerCase()) || 
+              doctorId.toLowerCase().includes(d.name.toLowerCase())
+            );
+            if (found) {
+              console.log(`[VAPI] Resolved "${doctorId}" to ID: ${found.id}`);
+              doctorId = found.id;
+            } else {
+              console.warn(`[VAPI] Could not resolve doctor name "${doctorId}" to an ID.`);
+            }
           }
 
           const appointment = await bookAppointment({
             ...args,
-            date: args.date,
+            doctorId,
+            date: args.date || args.appointmentDate || args.day,
+            time: args.time || args.appointmentTime || args.slot,
             reason: args.reason || "Voice assistant booking"
           }, userId);
-
+          
+          console.log(`[VAPI] Success! Appointment created: ${appointment.id}`);
           result = { success: true, appointmentId: appointment.id, message: "Appointment booked successfully" };
         } else {
           result = { error: `Tool ${name} not found` };
         }
       } catch (err: any) {
         console.error(`Error executing ${name}:`, err);
+        console.error(`Error Stack:`, err.stack);
         result = { error: err.message || "Failed to execute tool" };
       }
 
