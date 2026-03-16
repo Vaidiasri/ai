@@ -95,26 +95,20 @@ function VapiWidget() {
 
         const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID?.trim();
         console.log("Starting Vapi Call with Assistant ID:", assistantId);
-        
+
         // Import our upgraded prompts
-        const { FIRST_MESSAGE, SYSTEM_PROMPT } = await import("@/lib/vapi-prompt");
+        const { FIRST_MESSAGE, SYSTEM_PROMPT } = await import(
+          "@/lib/vapi-prompt"
+        );
 
         // Re-introducing professional overrides with a valid model configuration
         console.log("Starting Vapi Call with User:", user?.id);
 
-        await (vapi as any).start(assistantId!, {
+        await vapi.start(assistantId!, {
           firstMessage: FIRST_MESSAGE,
           variableValues: {
             name: user?.firstName || "Guest",
             userId: user?.id || "",
-          },
-          metadata: {
-            userId: user?.id || "",
-          },
-          assistant: {
-            variableValues: {
-              userId: user?.id || "",
-            }
           },
           model: {
             provider: "openai",
