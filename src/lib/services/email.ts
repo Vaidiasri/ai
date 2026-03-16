@@ -23,9 +23,10 @@ export async function sendAppointmentConfirmationEmail({
   duration = "30 mins",
   price = "Free",
 }: SendAppointmentEmailParams) {
+  console.log(`[EMAIL_SERVICE] Attempting to send email to: ${userEmail}`);
   try {
     const { data, error } = await resend.emails.send({
-      from: "DentWise <no-reply@resend.dev>",
+      from: "DentWise <onboarding@resend.dev>",
       to: [userEmail],
       subject: "Appointment Confirmation - DentWise",
       react: AppointmentConfirmationEmail({
@@ -39,10 +40,11 @@ export async function sendAppointmentConfirmationEmail({
     });
 
     if (error) {
-      console.error("Resend error:", error);
+      console.error("[EMAIL_SERVICE] Resend API error:", error);
       return { success: false, error };
     }
 
+    console.log("[EMAIL_SERVICE] Email sent successfully via Resend. ID:", data?.id);
     return { success: true, emailId: data?.id };
   } catch (err) {
     console.error("Email service error:", err);
