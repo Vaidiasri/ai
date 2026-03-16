@@ -1,7 +1,11 @@
-import { useBookedTimeSlots } from "@/hooks/use-appointment";
-import { APPOINTMENT_TYPES, getAvailableTimeSlots, getNext5Days } from "@/lib/utils";
-import { Button } from "../ui/button";
 import { ChevronLeftIcon, ClockIcon } from "lucide-react";
+import { useBookedTimeSlots } from "@/hooks/use-appointment";
+import {
+  APPOINTMENT_TYPES,
+  getAvailableTimeSlots,
+  getNext5Days,
+} from "@/lib/utils";
+import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 
 interface TimeSelectionStepProps {
@@ -27,7 +31,10 @@ function TimeSelectionStep({
   selectedTime,
   selectedType,
 }: TimeSelectionStepProps) {
-  const { data: bookedTimeSlots = [] } = useBookedTimeSlots(selectedDentistId, selectedDate);
+  const { data: bookedTimeSlots = [] } = useBookedTimeSlots(
+    selectedDentistId,
+    selectedDate,
+  );
 
   const availableDates = getNext5Days();
   const availableTimeSlots = getAvailableTimeSlots();
@@ -67,9 +74,13 @@ function TimeSelectionStep({
                   <div className="flex justify-between items-center">
                     <div>
                       <h4 className="font-medium">{type.name}</h4>
-                      <p className="text-sm text-muted-foreground">{type.duration}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {type.duration}
+                      </p>
                     </div>
-                    <span className="font-semibold text-primary">{type.price}</span>
+                    <span className="font-semibold text-primary">
+                      {type.price}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -117,7 +128,9 @@ function TimeSelectionStep({
                       onClick={() => !isBooked && onTimeChange(time)}
                       size="sm"
                       disabled={isBooked}
-                      className={isBooked ? "opacity-50 cursor-not-allowed" : ""}
+                      className={
+                        isBooked ? "opacity-50 cursor-not-allowed" : ""
+                      }
                     >
                       <ClockIcon className="w-3 h-3 mr-1" />
                       {time}

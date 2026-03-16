@@ -1,6 +1,12 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 
-export default clerkMiddleware();
+export default clerkMiddleware((auth, req) => {
+  if (req.nextUrl.pathname.startsWith("/api/vapi/tools")) {
+    console.log("Middleware: Skipping auth for Vapi tools:", req.nextUrl.pathname);
+    return;
+  }
+  console.log("Middleware: Handling request:", req.nextUrl.pathname);
+});
 
 export const config = {
   matcher: [

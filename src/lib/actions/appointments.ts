@@ -1,13 +1,14 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import type { AppointmentStatus } from "@prisma/client";
 import { prisma } from "../prisma";
-import { AppointmentStatus } from "@prisma/client";
 
 function transformAppointment(appointment: any) {
   return {
     ...appointment,
-    patientName: `${appointment.user.firstName || ""} ${appointment.user.lastName || ""}`.trim(),
+    patientName:
+      `${appointment.user.firstName || ""} ${appointment.user.lastName || ""}`.trim(),
     patientEmail: appointment.user.email,
     doctorName: appointment.doctor.name,
     doctorImageUrl: appointment.doctor.imageUrl || "",
@@ -45,8 +46,10 @@ export async function getUserAppointments() {
     if (!userId) throw new Error("You must be logged in to view appointments");
 
     // find user by clerkId from authenticated session
+    // NOTE: on first visit, UserSync (client component) may not have run yet,
+    // so the user might not be in the DB — return empty array gracefully.
     const user = await prisma.user.findUnique({ where: { clerkId: userId } });
-    if (!user) throw new Error("User not found. Please ensure your account is properly set up.");
+    if (!user) return [];
 
     const appointments = await prisma.appointment.findMany({
       where: { userId: user.id },
@@ -71,7 +74,8 @@ export async function getUserAppointmentStats() {
 
     const user = await prisma.user.findUnique({ where: { clerkId: userId } });
 
-    if (!user) throw new Error("User not found");
+    // User not in DB yet (UserSync hasn't run client-side) — return zero counts
+    if (!user) return { totalAppointments: 0, completedAppointments: 0 };
 
     // these calls will run in parallel, instead of waiting each other
     const [totalCount, completedCount] = await Promise.all([
@@ -123,17 +127,29 @@ interface BookAppointmentInput {
   reason?: string;
 }
 
-export async function bookAppointment(input: BookAppointmentInput) {
+export async function bookAppointment(input: BookAppointmentInput, overrideUserId?: string) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("You must be logged in to book an appointment");
+    let finalUserId: string | null = null;
+    
+    if (overrideUserId) {
+      finalUserId = overrideUserId;
+    } else {
+      const { userId } = await auth();
+      finalUserId = userId;
+    }
+
+    if (!finalUserId)
+      throw new Error("You must be logged in to book an appointment");
 
     if (!input.doctorId || !input.date || !input.time) {
       throw new Error("Doctor, date, and time are required");
     }
 
-    const user = await prisma.user.findUnique({ where: { clerkId: userId } });
-    if (!user) throw new Error("User not found. Please ensure your account is properly set up.");
+    const user = await prisma.user.findUnique({ where: { clerkId: finalUserId } });
+    if (!user)
+      throw new Error(
+        "User not found. Please ensure your account is properly set up.",
+      );
 
     const appointment = await prisma.appointment.create({
       data: {
@@ -163,7 +179,10 @@ export async function bookAppointment(input: BookAppointmentInput) {
   }
 }
 
-export async function updateAppointmentStatus(input: { id: string; status: AppointmentStatus }) {
+export async function updateAppointmentStatus(input: {
+  id: string;
+  status: AppointmentStatus;
+}) {
   try {
     const appointment = await prisma.appointment.update({
       where: { id: input.id },

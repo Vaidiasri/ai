@@ -8,16 +8,24 @@ export async function syncUser() {
     const user = await currentUser();
     if (!user) return;
 
-    const existingUser = await prisma.user.findUnique({ where: { clerkId: user.id } });
-    if (existingUser) return existingUser;
+    const email = user.emailAddresses[0]?.emailAddress;
+    if (!email) return; // can't create user without email
 
-    const dbUser = await prisma.user.create({
-      data: {
+    // upsert: create if not exists, update if already present (handles race conditions)
+    const dbUser = await prisma.user.upsert({
+      where: { clerkId: user.id },
+      update: {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email,
+        phone: user.phoneNumbers[0]?.phoneNumber ?? null,
+      },
+      create: {
         clerkId: user.id,
         firstName: user.firstName,
         lastName: user.lastName,
-        email: user.emailAddresses[0].emailAddress,
-        phone: user.phoneNumbers[0]?.phoneNumber,
+        email,
+        phone: user.phoneNumbers[0]?.phoneNumber ?? null,
       },
     });
 

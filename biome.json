@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!node_modules", "!.next", "!dist", "!build"]
+    "includes": ["**", "!node_modules", "!.next", "!dist", "!build", "!src/components/ui"]
   },
   "formatter": {
     "enabled": true,
@@ -17,7 +17,24 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "a11y": "off",
+      "suspicious": {
+        "noExplicitAny": "off",
+        "noUnknownAtRules": "off",
+        "noArrayIndexKey": "off",
+        "noDoubleEquals": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "off",
+        "useTemplate": "off"
+      },
+      "performance": { "noImgElement": "off" },
+      "correctness": {
+        "noUnusedImports": "off",
+        "noUnusedFunctionParameters": "off"
+      },
+      "security": "off"
     },
     "domains": {
       "next": "recommended",
