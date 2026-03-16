@@ -102,11 +102,19 @@ function VapiWidget() {
         // Re-introducing professional overrides with a valid model configuration
         console.log("Starting Vapi Call with User:", user?.id);
 
-        await vapi.start(assistantId!, {
+        await (vapi as any).start(assistantId!, {
           firstMessage: FIRST_MESSAGE,
           variableValues: {
             name: user?.firstName || "Guest",
             userId: user?.id || "",
+          },
+          metadata: {
+            userId: user?.id || "",
+          },
+          assistant: {
+            variableValues: {
+              userId: user?.id || "",
+            }
           },
           model: {
             provider: "openai",
