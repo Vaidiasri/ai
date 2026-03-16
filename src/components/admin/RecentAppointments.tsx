@@ -31,7 +31,10 @@ function RecentAppointments() {
     const newStatus =
       appointment?.status === "CONFIRMED" ? "COMPLETED" : "CONFIRMED";
 
-    updateAppointmentMutation.mutate({ id: appointmentId, status: newStatus });
+    updateAppointmentMutation.mutate({
+      id: appointmentId,
+      status: newStatus as any,
+    });
   };
 
   const getStatusBadge = (status: string) => {

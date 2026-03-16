@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { format } from "date-fns";
 import { useState } from "react";
 import { toast } from "sonner";
