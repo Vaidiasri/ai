@@ -23,6 +23,12 @@ export async function POST(req: NextRequest) {
     console.log("Headers:", JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2));
     console.log("Raw Body:", rawBody); // Use rawBody which was already read
 
+    // Explicitly handle ping requests from Vapi dashboard validation
+    if (message?.type === "ping") {
+      console.log("Ping received, responding with 200 OK");
+      return NextResponse.json({ message: "Pong", results: [] });
+    }
+
     if (!rawBody) {
       console.log("Empty body received");
       return NextResponse.json({ error: "Empty request body" }, { status: 400 });
