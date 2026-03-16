@@ -29,15 +29,26 @@ export async function POST(req: NextRequest) {
     }
 
     // The original message?.type check is now integrated into the new tool call extraction
-    const { toolCalls, toolCallList } = message || {};
-    const calls = toolCalls || toolCallList || [];
+    const { toolCalls, toolCallList, toolWithToolCallList } = message || {};
+    const calls = toolCalls || toolCallList || toolWithToolCallList || [];
 
     console.log("Extracted Tool Calls:", JSON.stringify(calls, null, 2));
 
     const results = [];
 
     for (const toolCall of calls) {
-      const { name, args, id } = toolCall.function; // Keep 'id' from original structure
+      // Vapi sometimes puts `id` at the root of `toolCall` instead of inside `function`
+      const id = toolCall.id || toolCall.function?.id;
+      const { name, arguments: argsJson, args: fallbackArgs } = toolCall.function || {}; 
+      
+      // Parse arguments if they are a string, otherwise use raw args
+      let args = fallbackArgs || {};
+      if (typeof argsJson === 'string') {
+        try { args = JSON.parse(argsJson); } catch (e) { }
+      } else if (argsJson) {
+        args = argsJson;
+      }
+
       console.log(`Executing tool: ${name} with args:`, args);
 
       let result; // Declare result here to be used in the push
@@ -57,10 +68,13 @@ export async function POST(req: NextRequest) {
           const userId = message?.variableValues?.userId || "";
           console.log("Booking appointment with userId:", userId);
           
+          if (!userId) {
+            console.warn("No userId provided in Vapi variableValues. This booking may fail if not handled by standard Auth.");
+          }
+
           const appointment = await bookAppointment({
-            doctorId: args.doctorId,
+            ...args,
             date: args.date, // Pass as string, action handles conversion
-            time: args.time,
             reason: args.reason || "Voice assistant booking"
           }, userId);
           result = { success: true, appointmentId: appointment.id, message: "Appointment booked successfully" };
@@ -80,6 +94,7 @@ export async function POST(req: NextRequest) {
 
     console.log("Vapi sending response:", JSON.stringify({ results }, null, 2));
     const response = NextResponse.json({
+      message: "Tool executed",
       results: results
     });
 
