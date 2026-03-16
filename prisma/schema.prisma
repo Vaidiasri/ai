@@ -117,5 +117,6 @@ enum Gender {
 enum AppointmentStatus {
   PENDING
   CONFIRMED
+  COMPLETED
   CANCELLED
 }
