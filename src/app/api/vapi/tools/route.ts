@@ -67,13 +67,21 @@ export async function POST(req: NextRequest) {
           console.log(`[VAPI] Found ${doctors.length} doctors.`);
         } else if (name === "get_current_user") {
           console.log("[VAPI] Tool Called: get_current_user");
-          const userId = 
+          let userId = 
             message?.variableValues?.userId || 
             message?.metadata?.userId || 
             message?.customer?.metadata?.userId ||
             body?.metadata?.userId ||
             "";
           
+          if (!userId && rawBody) {
+             const clerkIdMatch = rawBody.match(/"userId"\s*:\s*"(user_[a-zA-Z0-9]+)"/i);
+             if (clerkIdMatch) {
+               userId = clerkIdMatch[1];
+               console.log(`[VAPI] get_current_user -> Found userId via REGEX HUNT: [${userId}]`);
+             }
+          }
+
           if (userId) {
             const user = await prisma.user.findUnique({ where: { clerkId: userId } });
             result = { 
@@ -85,7 +93,8 @@ export async function POST(req: NextRequest) {
             result = { 
               userId: null, 
               isLoggedIn: false, 
-              error: "No userId detected in Vapi payload" 
+              error: "No userId detected in Vapi payload",
+              debug: { body_keys: Object.keys(body || {}), message_keys: Object.keys(message || {}) }
             };
           }
           console.log("[VAPI] get_current_user result:", result);
@@ -93,21 +102,36 @@ export async function POST(req: NextRequest) {
           console.log("[VAPI] Tool Called: book_appointment");
           
           // Hunt for userId in every possible location
-          const userId = 
+          let userId = 
             message?.variableValues?.userId || 
             message?.metadata?.userId || 
             message?.customer?.metadata?.userId ||
             body?.metadata?.userId ||
             "";
 
-          console.log(`[VAPI] Resolved userId: [${userId}] (Found via search)`);
+          // Super-hunt: Scan the entire raw body if structured hunt fails
+          if (!userId && rawBody) {
+            const clerkIdMatch = rawBody.match(/"userId"\s*:\s*"(user_[a-zA-Z0-9]+)"/i);
+            if (clerkIdMatch) {
+              userId = clerkIdMatch[1];
+              console.log(`[VAPI] Found userId via REGEX HUNT: [${userId}]`);
+            }
+          }
+
+          console.log(`[VAPI] Resolved userId for booking: [${userId}]`);
           
           if (!userId) {
-            console.warn("[VAPI] CRITICAL: No userId found in any payload location.");
+            console.warn("[VAPI] CRITICAL: No userId found in any payload location or via regex hunt.");
+            console.log("[VAPI] DEBUG - Raw Body keys:", Object.keys(body || {}));
+            console.log("[VAPI] DEBUG - Message keys:", Object.keys(message || {}));
+            
             result = { 
               error: "Login required", 
-              message: "system_error: userId_missing. Please ensure the user is logged in.",
-              debug: { payload_keys: Object.keys(message || {}) }
+              message: "system_error: userId_missing. Please refresh the page and ensure you are logged in.",
+              debug: { 
+                payload_missing_id: true,
+                checked_at: new Date().toISOString()
+              }
             };
           } else {
             console.log("[VAPI] Raw Arguments:", JSON.stringify(args, null, 2));
