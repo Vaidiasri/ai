@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import AppointmentConfirmationEmail from "@/components/emails/AppointmentConfirmationEmail";
-import resend from "@/lib/resend";
+import { sendAppointmentConfirmationEmail } from "@/lib/services/email";
 
 export async function POST(request: Request) {
   try {
@@ -24,24 +23,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // send the email
-    // do not use this in prod, only for testing purposes
-    const { data, error } = await resend.emails.send({
-      from: "DentWise <no-reply@resend.dev>",
-      to: [userEmail],
-      subject: "Appointment Confirmation - DentWise",
-      react: AppointmentConfirmationEmail({
-        doctorName,
-        appointmentDate,
-        appointmentTime,
-        appointmentType,
-        duration,
-        price,
-      }),
+    // send the email using the centralized service
+    const result = await sendAppointmentConfirmationEmail({
+      userEmail,
+      doctorName,
+      appointmentDate,
+      appointmentTime,
+      appointmentType,
+      duration,
+      price,
     });
 
-    if (error) {
-      console.error("Resend error:", error);
+    if (!result.success) {
       return NextResponse.json(
         { error: "Failed to send email" },
         { status: 500 },
@@ -49,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { message: "Email sent successfully", emailId: data?.id },
+      { message: "Email sent successfully", emailId: result.emailId },
       { status: 200 },
     );
   } catch (error) {

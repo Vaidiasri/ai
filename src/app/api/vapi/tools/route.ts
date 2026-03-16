@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAvailableDoctors } from "@/lib/actions/doctors";
 import { bookAppointment } from "@/lib/actions/appointments";
+import { sendAppointmentConfirmationEmail } from "@/lib/services/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -83,6 +84,19 @@ export async function POST(req: NextRequest) {
             date: args.date, // Pass as string, action handles conversion
             reason: args.reason || "Voice assistant booking"
           }, userId);
+          
+          // Trigger email notification
+          if (appointment.patientEmail) {
+            console.log(`Sending confirmation email to ${appointment.patientEmail}`);
+            sendAppointmentConfirmationEmail({
+              userEmail: appointment.patientEmail,
+              doctorName: appointment.doctorName,
+              appointmentDate: appointment.date,
+              appointmentTime: appointment.time,
+              appointmentType: appointment.reason
+            }).catch(err => console.error("Failed to send Vapi confirmation email:", err));
+          }
+
           result = { success: true, appointmentId: appointment.id, message: "Appointment booked successfully" };
         } else {
           result = { error: `Tool ${name} not found` };
