@@ -2,7 +2,7 @@
 
 DentWise is an advanced dental clinic management platform designed to streamline patient booking, appointment management, and automated patient communication. Featuring a cutting-edge AI Voice Assistant, DentWise provides a seamless bridge between modern clinical needs and automated patient interactions.
 
-![DentWise Dashboard](/public/screenshot-for-readme.png)
+![DentWise Platform Banner](/public/dentwise-banner.png)
 
 ## Core Features
 
