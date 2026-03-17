@@ -154,6 +154,23 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
       );
     }
 
+    // --- DUPLICATE CHECK START ---
+    const appointmentDate = new Date(input.date);
+    const existingAppointment = await prisma.appointment.findFirst({
+      where: {
+        doctorId: input.doctorId,
+        date: appointmentDate,
+        time: input.time,
+        status: "CONFIRMED"
+      }
+    });
+
+    if (existingAppointment) {
+      console.warn(`[APPOINTMENTS_ACTION] Duplicate booking attempt blocked for ${input.doctorId} at ${input.time} on ${input.date}`);
+      throw new Error(`This time slot (${input.time}) is already booked for this doctor. Please choose another time.`);
+    }
+    // --- DUPLICATE CHECK END ---
+
     const appointment = await prisma.appointment.create({
       data: {
         userId: user.id,

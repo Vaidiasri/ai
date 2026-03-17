@@ -101,24 +101,35 @@ export async function POST(req: NextRequest) {
         } else if (name === "book_appointment") {
           console.log("[VAPI] Tool Called: book_appointment");
           
-          // Hunt for userId in every possible location
-          let userId = 
-            message?.variableValues?.userId || 
-            message?.metadata?.userId || 
-            message?.customer?.metadata?.userId ||
-            body?.metadata?.userId ||
-            "";
+          // Hunt for userId in every possible location with source tracing
+          let userId = "";
+          let source = "none";
+
+          if (message?.variableValues?.userId) {
+            userId = message.variableValues.userId;
+            source = "message.variableValues.userId";
+          } else if (message?.metadata?.userId) {
+            userId = message.metadata.userId;
+            source = "message.metadata.userId";
+          } else if (message?.customer?.metadata?.userId) {
+            userId = message.customer.metadata.userId;
+            source = "message.customer.metadata.userId";
+          } else if (body?.metadata?.userId) {
+            userId = body.metadata.userId;
+            source = "body.metadata.userId";
+          }
 
           // Super-hunt: Scan the entire raw body if structured hunt fails
           if (!userId && rawBody) {
             const clerkIdMatch = rawBody.match(/"userId"\s*:\s*"(user_[a-zA-Z0-9]+)"/i);
             if (clerkIdMatch) {
               userId = clerkIdMatch[1];
+              source = "REGEX_HUNT (rawBody)";
               console.log(`[VAPI] Found userId via REGEX HUNT: [${userId}]`);
             }
           }
 
-          console.log(`[VAPI] Resolved userId for booking: [${userId}]`);
+          console.log(`[VAPI] RESOLVED userId: [${userId}] FROM SOURCE: [${source}]`);
           
           if (!userId) {
             console.warn("[VAPI] CRITICAL: No userId found in any payload location or via regex hunt.");
@@ -134,6 +145,14 @@ export async function POST(req: NextRequest) {
               }
             };
           } else {
+            console.log("[VAPI] RESOLVED userId:", userId);
+            const user = await prisma.user.findUnique({ where: { clerkId: userId } });
+            if (user) {
+               console.log(`[VAPI] IDENTIFIED USER: ${user.firstName} ${user.lastName} <${user.email}>`);
+            } else {
+               console.warn(`[VAPI] WARNING: Resolved userId [${userId}] NOT FOUND in Prisma DB.`);
+            }
+
             console.log("[VAPI] Raw Arguments:", JSON.stringify(args, null, 2));
 
             let doctorId = args.doctorId || args.doctor_id || args.doctor;
@@ -170,6 +189,25 @@ export async function POST(req: NextRequest) {
             
             console.log(`[VAPI] Success! Appointment created: ${appointment.id}`);
             result = { success: true, appointmentId: appointment.id, message: "Appointment booked successfully" };
+          }
+        } else if (name === "send_test_email") {
+          console.log("[VAPI] Tool Called: send_test_email");
+          const email = args.email || args.userEmail;
+          if (!email) {
+            result = { error: "Email address is required" };
+          } else {
+            const emailRes = await sendAppointmentConfirmationEmail({
+              userEmail: email,
+              doctorName: "Diagnostic Test",
+              appointmentDate: new Date().toLocaleDateString(),
+              appointmentTime: new Date().toLocaleTimeString(),
+              appointmentType: "System Diagnostic Test"
+            });
+            result = { 
+              success: emailRes.success, 
+              message: emailRes.success ? "Test email sent" : "Test email failed",
+              details: emailRes.error ? JSON.stringify(emailRes.error) : "Check Resend dashboard"
+            };
           }
         } else {
           result = { error: `Tool ${name} not found` };

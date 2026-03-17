@@ -4,17 +4,22 @@ import { addDays, nextDay, startOfToday, format, parse, isAfter } from 'date-fns
  * Parses a date string from Vapi which might be natural language like "Monday" or "Tomorrow"
  */
 export function parseVapiDate(dateStr: string): string {
-  if (!dateStr) return format(new Date(), 'yyyy-MM-dd');
+  const currentYear = 2026;
+  if (!dateStr) return format(new Date(), 'yyyy-MM-dd').replace(/^\d{4}/, currentYear.toString());
 
   // If it's already in YYYY-MM-DD or ISO format
   if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    const parts = dateStr.split('T')[0].split('-');
+    // Force 2026 if the year is in the past
+    if (parseInt(parts[0]) < currentYear) {
+      return `${currentYear}-${parts[1]}-${parts[2]}`;
+    }
     return dateStr.split('T')[0];
   }
 
   const today = startOfToday();
   const lower = dateStr.toLowerCase().trim();
 
-  const currentYear = 2026;
 
   if (lower === 'today') return format(today, 'yyyy-MM-dd').replace(/^\d{4}/, currentYear.toString());
   if (lower === 'tomorrow') return format(addDays(today, 1), 'yyyy-MM-dd').replace(/^\d{4}/, currentYear.toString());
