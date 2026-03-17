@@ -146,6 +146,13 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
       throw new Error("Doctor, date, and time are required");
     }
 
+    // Standardize date/time strings for consistency (Force 2026 and standard format)
+    const { parseVapiDate, normalizeVapiTime } = require("../utils/vapi-utils");
+    const normalizedDate = parseVapiDate(input.date);
+    const normalizedTime = normalizeVapiTime(input.time);
+
+    console.log(`[APPOINTMENTS_ACTION] Handlers matched. Normalized Date: ${normalizedDate}, Time: ${normalizedTime}`);
+
     const user = await prisma.user.findUnique({ where: { clerkId: finalUserId } });
     
     if (!user) {
@@ -155,19 +162,19 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
     }
 
     // --- DUPLICATE CHECK START ---
-    const appointmentDate = new Date(input.date);
+    const appointmentDate = new Date(normalizedDate);
     const existingAppointment = await prisma.appointment.findFirst({
       where: {
         doctorId: input.doctorId,
         date: appointmentDate,
-        time: input.time,
+        time: normalizedTime,
         status: "CONFIRMED"
       }
     });
 
     if (existingAppointment) {
-      console.warn(`[APPOINTMENTS_ACTION] Duplicate booking attempt blocked for ${input.doctorId} at ${input.time} on ${input.date}`);
-      throw new Error(`This time slot (${input.time}) is already booked for this doctor. Please choose another time.`);
+      console.warn(`[APPOINTMENTS_ACTION] Duplicate booking attempt blocked for ${input.doctorId} at ${normalizedTime} on ${normalizedDate}`);
+      throw new Error(`This time slot (${normalizedTime}) is already booked for this doctor. Please choose another time.`);
     }
     // --- DUPLICATE CHECK END ---
 
@@ -175,8 +182,8 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
       data: {
         userId: user.id,
         doctorId: input.doctorId,
-        date: new Date(input.date),
-        time: input.time,
+        date: new Date(normalizedDate),
+        time: normalizedTime,
         reason: input.reason || "General consultation",
         status: "CONFIRMED",
       },
