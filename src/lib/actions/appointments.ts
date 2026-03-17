@@ -6,21 +6,25 @@ import { prisma } from "../prisma";
 import { sendAppointmentConfirmationEmail } from "../services/email";
 import { parseVapiDate, normalizeVapiTime } from "../utils/vapi-utils";
 
+/**
+ * Transforms a Prisma appointment into a flat, serializable object.
+ * Next.js 15 Server Actions MUST return serializable data.
+ */
 function transformAppointment(appointment: any) {
   return {
-    id: appointment.id,
-    userId: appointment.userId,
-    doctorId: appointment.doctorId,
-    patientName: `${appointment.user.firstName || ""} ${appointment.user.lastName || ""}`.trim(),
-    patientEmail: appointment.user.email,
-    doctorName: appointment.doctor.name,
-    doctorImageUrl: appointment.doctor.imageUrl || "",
+    id: String(appointment.id),
+    userId: String(appointment.userId),
+    doctorId: String(appointment.doctorId),
+    patientName: String(`${appointment.user.firstName || ""} ${appointment.user.lastName || ""}`.trim()),
+    patientEmail: String(appointment.user.email || ""),
+    doctorName: String(appointment.doctor.name || ""),
+    doctorImageUrl: String(appointment.doctor.imageUrl || ""),
     date: appointment.date.toISOString().split("T")[0],
-    time: appointment.time,
-    duration: appointment.duration,
-    status: appointment.status,
-    reason: appointment.reason,
-    notes: appointment.notes,
+    time: String(appointment.time),
+    duration: Number(appointment.duration),
+    status: String(appointment.status),
+    reason: String(appointment.reason || "General consultation"),
+    notes: String(appointment.notes || ""),
     createdAt: appointment.createdAt.toISOString(),
     updatedAt: appointment.updatedAt.toISOString(),
   };
@@ -30,13 +34,7 @@ export async function getAppointments() {
   try {
     const appointments = await prisma.appointment.findMany({
       include: {
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
+        user: { select: { firstName: true, lastName: true, email: true } },
         doctor: { select: { name: true, imageUrl: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -44,20 +42,16 @@ export async function getAppointments() {
 
     return appointments.map(transformAppointment);
   } catch (error) {
-    console.log("Error fetching appointments:", error);
+    console.error("Error fetching appointments:", error);
     throw new Error("Failed to fetch appointments");
   }
 }
 
 export async function getUserAppointments() {
   try {
-    // get authenticated user from Clerk
     const { userId } = await auth();
     if (!userId) throw new Error("You must be logged in to view appointments");
 
-    // find user by clerkId from authenticated session
-    // NOTE: on first visit, UserSync (client component) may not have run yet,
-    // so the user might not be in the DB — return empty array gracefully.
     const user = await prisma.user.findUnique({ where: { clerkId: userId } });
     if (!user) return [];
 
@@ -80,32 +74,19 @@ export async function getUserAppointments() {
 export async function getUserAppointmentStats() {
   try {
     const { userId } = await auth();
-    if (!userId) throw new Error("You must be authenticated");
+    if (!userId) return { totalAppointments: 0, completedAppointments: 0 };
 
     const user = await prisma.user.findUnique({ where: { clerkId: userId } });
-
-    // User not in DB yet (UserSync hasn't run client-side) — return zero counts
     if (!user) return { totalAppointments: 0, completedAppointments: 0 };
 
-    // these calls will run in parallel, instead of waiting each other
     const [totalCount, completedCount] = await Promise.all([
-      prisma.appointment.count({
-        where: { userId: user.id },
-      }),
-      prisma.appointment.count({
-        where: {
-          userId: user.id,
-          status: "COMPLETED",
-        },
-      }),
+      prisma.appointment.count({ where: { userId: user.id } }),
+      prisma.appointment.count({ where: { userId: user.id, status: "COMPLETED" } }),
     ]);
 
-    return {
-      totalAppointments: totalCount,
-      completedAppointments: completedCount,
-    };
+    return { totalAppointments: totalCount, completedAppointments: completedCount };
   } catch (error) {
-    console.error("Error fetching user appointment stats:", error);
+    console.error("Error fetching user stats:", error);
     return { totalAppointments: 0, completedAppointments: 0 };
   }
 }
@@ -116,17 +97,14 @@ export async function getBookedTimeSlots(doctorId: string, date: string) {
       where: {
         doctorId,
         date: new Date(date),
-        status: {
-          in: ["CONFIRMED", "COMPLETED"], // consider both confirmed and completed appointments as blocking
-        },
+        status: { in: ["CONFIRMED", "COMPLETED"] },
       },
       select: { time: true },
     });
-
-    return appointments.map((appointment) => appointment.time);
+    return appointments.map((a) => a.time);
   } catch (error) {
-    console.error("Error fetching booked time slots:", error);
-    return []; // return empty array if there's an error
+    console.error("Error fetching slots:", error);
+    return [];
   }
 }
 
@@ -148,109 +126,76 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
       finalUserId = userId;
     }
 
-    if (!finalUserId) {
-      console.error("[APPOINTMENTS_ACTION] No userId found in auth() or override");
-      throw new Error("You must be logged in to book an appointment");
-    }
-
-    console.log(`[APPOINTMENTS_ACTION] Booking attempt for user: ${finalUserId}`);
+    if (!finalUserId) throw new Error("Authentication required");
 
     if (!input.doctorId || !input.date || !input.time) {
-      throw new Error("Doctor, date, and time are required");
+      throw new Error("Missing required fields: doctorId, date, or time");
     }
 
-    // Standardize date/time strings (Force 2026)
     const normalizedDate = parseVapiDate(input.date);
     const normalizedTime = normalizeVapiTime(input.time);
 
-    console.log(`[APPOINTMENTS_ACTION] Inputs normalized: ${normalizedDate} ${normalizedTime}`);
-
     const user = await prisma.user.findUnique({ where: { clerkId: finalUserId } });
-    
-    if (!user) {
-      throw new Error(
-        "User not found. Please ensure your account is properly set up.",
-      );
-    }
+    if (!user) throw new Error("User record not found in database");
 
-    // --- DUPLICATE CHECK START ---
-    const appointmentDate = new Date(normalizedDate);
-    const existingAppointment = await prisma.appointment.findFirst({
+    // --- DUPLICATE CHECK ---
+    const existing = await prisma.appointment.findFirst({
       where: {
         doctorId: input.doctorId,
-        date: appointmentDate,
+        date: new Date(normalizedDate),
         time: normalizedTime,
         status: "CONFIRMED"
       }
     });
 
-    if (existingAppointment) {
-      console.warn(`[APPOINTMENTS_ACTION] Duplicate booking attempt blocked for ${input.doctorId} at ${normalizedTime} on ${normalizedDate}`);
-      throw new Error(`This time slot (${normalizedTime}) is already booked for this doctor. Please choose another time.`);
+    if (existing) {
+      throw new Error("This time slot is already booked for this doctor.");
     }
-    // --- DUPLICATE CHECK END ---
 
+    // --- CREATE ---
     const appointment = await prisma.appointment.create({
       data: {
         userId: user.id,
         doctorId: input.doctorId,
-        date: new Date(normalizedDate), 
+        date: new Date(normalizedDate),
         time: normalizedTime,
         reason: input.reason || "General consultation",
         status: "CONFIRMED",
       },
       include: {
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
+        user: { select: { firstName: true, lastName: true, email: true } },
         doctor: { select: { id: true, name: true, imageUrl: true } },
       },
     });
 
-    console.log(`[APPOINTMENTS_ACTION] Appointment created in DB: ${appointment.id}`);
-
     const result = transformAppointment(appointment);
 
-    // Send confirmation email
+    // --- EMAIL (Silent failure) ---
     if (result.patientEmail) {
-      const emailResult = await sendAppointmentConfirmationEmail({
+      sendAppointmentConfirmationEmail({
         userEmail: result.patientEmail,
         doctorName: result.doctorName,
         appointmentDate: result.date,
         appointmentTime: result.time,
         appointmentType: result.reason
-      });
-      if (emailResult.success) {
-        console.log(`[APPOINTMENTS_ACTION] Email sent successfully for appointment: ${result.id}`);
-      } else {
-        console.error(`[APPOINTMENTS_ACTION] Email failed for appointment: ${result.id}`, emailResult.error);
-      }
+      }).catch(err => console.error("[APPOINTMENTS_ACTION] Email failed:", err));
     }
 
     return result;
   } catch (error: any) {
-    console.error("Error booking appointment:", error);
-    throw error;
+    console.error("[APPOINTMENTS_ACTION] Error in bookAppointment:", error);
+    throw new Error(error.message || "An unexpected error occurred while booking");
   }
 }
 
-export async function updateAppointmentStatus(input: {
-  id: string;
-  status: AppointmentStatus;
-}) {
+export async function updateAppointmentStatus(input: { id: string; status: AppointmentStatus }) {
   try {
-    const appointment = await prisma.appointment.update({
+    return await prisma.appointment.update({
       where: { id: input.id },
       data: { status: input.status },
     });
-
-    return appointment;
   } catch (error) {
-    console.error("Error updating appointment:", error);
-    throw new Error("Failed to update appointment");
+    console.error("Error updating status:", error);
+    throw new Error("Failed to update status");
   }
 }

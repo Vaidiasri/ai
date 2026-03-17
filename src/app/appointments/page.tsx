@@ -12,9 +12,9 @@ import ProgressSteps from "@/components/appointments/ProgressSteps";
 import TimeSelectionStep from "@/components/appointments/TimeSelectionStep";
 import Navbar from "@/components/Navbar";
 import {
-  useBookAppointment,
   useUserAppointments,
 } from "@/hooks/use-appointment";
+import { bookAppointment } from "@/lib/actions/appointments";
 import { APPOINTMENT_TYPES } from "@/lib/utils";
 
 function AppointmentsPage() {
@@ -29,8 +29,8 @@ function AppointmentsPage() {
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [bookedAppointment, setBookedAppointment] = useState<any>(null);
 
-  const bookAppointmentMutation = useBookAppointment();
-  const { data: userAppointments = [] } = useUserAppointments();
+  const [isBooking, setIsBooking] = useState(false);
+  const { data: userAppointments = [], refetch: refetchUserAppointments } = useUserAppointments();
 
   const handleSelectDentist = (dentistId: string) => {
     setSelectedDentistId(dentistId);
@@ -51,58 +51,53 @@ function AppointmentsPage() {
       (t) => t.id === selectedType,
     );
 
-    bookAppointmentMutation.mutate(
-      {
+    setIsBooking(true);
+    try {
+      console.log("[CLIENT] Calling bookAppointment directly...");
+      const appointment = await bookAppointment({
         doctorId: selectedDentistId,
         date: selectedDate,
         time: selectedTime,
         reason: appointmentType?.name,
-      },
-      {
-        onSuccess: async (appointment) => {
-          // store the appointment details to show in the modal
-          setBookedAppointment(appointment);
+      });
 
-          try {
-            const emailResponse = await fetch("/api/send-appointment-email", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                userEmail: appointment.patientEmail,
-                doctorName: appointment.doctorName,
-                appointmentDate: format(
-                  new Date(appointment.date),
-                  "EEEE, MMMM d, yyyy",
-                ),
-                appointmentTime: appointment.time,
-                appointmentType: appointmentType?.name,
-                duration: appointmentType?.duration,
-                price: appointmentType?.price,
-              }),
-            });
+      console.log("[CLIENT] Booking success:", appointment);
+      setBookedAppointment(appointment);
 
-            if (!emailResponse.ok)
-              console.error("Failed to send confirmation email");
-          } catch (error) {
-            console.error("Error sending confirmation email:", error);
-          }
+      // Refresh list
+      refetchUserAppointments();
 
-          // show the success modal
-          setShowConfirmationModal(true);
+      try {
+        await fetch("/api/send-appointment-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userEmail: appointment.patientEmail,
+            doctorName: appointment.doctorName,
+            appointmentDate: format(new Date(appointment.date), "EEEE, MMMM d, yyyy"),
+            appointmentTime: appointment.time,
+            appointmentType: appointmentType?.name,
+            duration: appointmentType?.duration,
+            price: appointmentType?.price,
+          }),
+        });
+      } catch (e) {
+        console.error("Email API error:", e);
+      }
 
-          // reset form
-          setSelectedDentistId(null);
-          setSelectedDate("");
-          setSelectedTime("");
-          setSelectedType("");
-          setCurrentStep(1);
-        },
-        onError: (error) =>
-          toast.error(`Failed to book appointment: ${error.message}`),
-      },
-    );
+      setShowConfirmationModal(true);
+      // Reset form
+      setSelectedDentistId(null);
+      setSelectedDate("");
+      setSelectedTime("");
+      setSelectedType("");
+      setCurrentStep(1);
+    } catch (error: any) {
+      console.error("[CLIENT] Booking failed:", error);
+      toast.error(`Failed to book appointment: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsBooking(false);
+    }
   };
 
   return (
@@ -148,7 +143,7 @@ function AppointmentsPage() {
             selectedDate={selectedDate}
             selectedTime={selectedTime}
             selectedType={selectedType}
-            isBooking={bookAppointmentMutation.isPending}
+            isBooking={isBooking}
             onBack={() => setCurrentStep(2)}
             onModify={() => setCurrentStep(2)}
             onConfirm={handleBookAppointment}
