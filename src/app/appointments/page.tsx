@@ -67,23 +67,8 @@ function AppointmentsPage() {
       // Refresh list
       refetchUserAppointments();
 
-      try {
-        await fetch("/api/send-appointment-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userEmail: appointment.patientEmail,
-            doctorName: appointment.doctorName,
-            appointmentDate: format(new Date(appointment.date), "EEEE, MMMM d, yyyy"),
-            appointmentTime: appointment.time,
-            appointmentType: appointmentType?.name,
-            duration: appointmentType?.duration,
-            price: appointmentType?.price,
-          }),
-        });
-      } catch (e) {
-        console.error("Email API error:", e);
-      }
+      // Email is now handled server-side in the bookAppointment action
+      // for both Voice and manual UI flows to ensure consistency.
 
       setShowConfirmationModal(true);
       // Reset form

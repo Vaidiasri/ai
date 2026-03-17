@@ -2,6 +2,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import type { AppointmentStatus } from "@prisma/client";
+import { format } from "date-fns";
 import { prisma } from "../prisma";
 import { sendAppointmentConfirmationEmail } from "../services/email";
 import { parseVapiDate, normalizeVapiTime } from "../utils/vapi-utils";
@@ -172,10 +173,13 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
 
     // --- EMAIL (Silent failure) ---
     if (result.patientEmail) {
+      // Professional formatting for email: e.g. "Friday, March 20, 2026"
+      const formattedDateForEmail = format(new Date(result.date), "EEEE, MMMM d, yyyy");
+      
       sendAppointmentConfirmationEmail({
         userEmail: result.patientEmail,
         doctorName: result.doctorName,
-        appointmentDate: result.date,
+        appointmentDate: formattedDateForEmail,
         appointmentTime: result.time,
         appointmentType: result.reason
       }).catch(err => console.error("[APPOINTMENTS_ACTION] Email failed:", err));
