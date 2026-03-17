@@ -4,16 +4,25 @@ import { auth } from "@clerk/nextjs/server";
 import type { AppointmentStatus } from "@prisma/client";
 import { prisma } from "../prisma";
 import { sendAppointmentConfirmationEmail } from "../services/email";
+import { parseVapiDate, normalizeVapiTime } from "../utils/vapi-utils";
 
 function transformAppointment(appointment: any) {
   return {
-    ...appointment,
-    patientName:
-      `${appointment.user.firstName || ""} ${appointment.user.lastName || ""}`.trim(),
+    id: appointment.id,
+    userId: appointment.userId,
+    doctorId: appointment.doctorId,
+    patientName: `${appointment.user.firstName || ""} ${appointment.user.lastName || ""}`.trim(),
     patientEmail: appointment.user.email,
     doctorName: appointment.doctor.name,
     doctorImageUrl: appointment.doctor.imageUrl || "",
     date: appointment.date.toISOString().split("T")[0],
+    time: appointment.time,
+    duration: appointment.duration,
+    status: appointment.status,
+    reason: appointment.reason,
+    notes: appointment.notes,
+    createdAt: appointment.createdAt.toISOString(),
+    updatedAt: appointment.updatedAt.toISOString(),
   };
 }
 
@@ -139,19 +148,22 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
       finalUserId = userId;
     }
 
-    if (!finalUserId)
+    if (!finalUserId) {
+      console.error("[APPOINTMENTS_ACTION] No userId found in auth() or override");
       throw new Error("You must be logged in to book an appointment");
+    }
+
+    console.log(`[APPOINTMENTS_ACTION] Booking attempt for user: ${finalUserId}`);
 
     if (!input.doctorId || !input.date || !input.time) {
       throw new Error("Doctor, date, and time are required");
     }
 
-    // Standardize date/time strings for consistency (Force 2026 and standard format)
-    const { parseVapiDate, normalizeVapiTime } = require("../utils/vapi-utils");
+    // Standardize date/time strings (Force 2026)
     const normalizedDate = parseVapiDate(input.date);
     const normalizedTime = normalizeVapiTime(input.time);
 
-    console.log(`[APPOINTMENTS_ACTION] Handlers matched. Normalized Date: ${normalizedDate}, Time: ${normalizedTime}`);
+    console.log(`[APPOINTMENTS_ACTION] Inputs normalized: ${normalizedDate} ${normalizedTime}`);
 
     const user = await prisma.user.findUnique({ where: { clerkId: finalUserId } });
     
@@ -182,7 +194,7 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
       data: {
         userId: user.id,
         doctorId: input.doctorId,
-        date: new Date(normalizedDate),
+        date: new Date(normalizedDate), 
         time: normalizedTime,
         reason: input.reason || "General consultation",
         status: "CONFIRMED",
@@ -195,9 +207,11 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
             email: true,
           },
         },
-        doctor: { select: { name: true, imageUrl: true } },
+        doctor: { select: { id: true, name: true, imageUrl: true } },
       },
     });
+
+    console.log(`[APPOINTMENTS_ACTION] Appointment created in DB: ${appointment.id}`);
 
     const result = transformAppointment(appointment);
 
