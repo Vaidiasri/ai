@@ -14,8 +14,10 @@ export function parseVapiDate(dateStr: string): string {
   const today = startOfToday();
   const lower = dateStr.toLowerCase().trim();
 
-  if (lower === 'today') return format(today, 'yyyy-MM-dd');
-  if (lower === 'tomorrow') return format(addDays(today, 1), 'yyyy-MM-dd');
+  const currentYear = 2026;
+
+  if (lower === 'today') return format(today, 'yyyy-MM-dd').replace(/^\d{4}/, currentYear.toString());
+  if (lower === 'tomorrow') return format(addDays(today, 1), 'yyyy-MM-dd').replace(/^\d{4}/, currentYear.toString());
 
   const dayMap: { [key: string]: number } = {
     'sunday': 0, 'sun': 0,
@@ -31,22 +33,29 @@ export function parseVapiDate(dateStr: string): string {
     if (lower.includes(dayName)) {
       const dayIndex = dayMap[dayName];
       // nextDay from date-fns finds the NEXT occurrence of the day
-      const targetDate = nextDay(today, dayIndex as any);
-      return format(targetDate, 'yyyy-MM-dd');
+      let targetDate = nextDay(today, dayIndex as any);
+      
+      // Ensure we use 2026
+      const formatted = format(targetDate, 'yyyy-MM-dd').replace(/^\d{4}/, currentYear.toString());
+      return formatted;
     }
   }
 
   // Fallback to original or today
   try {
-    const parsed = new Date(dateStr);
+    let parsed = new Date(dateStr);
     if (!isNaN(parsed.getTime())) {
+      // If the year is 2023 or 2001 (defaulting behavior), force it to 2026
+      if (parsed.getFullYear() < 2026) {
+        parsed.setFullYear(currentYear);
+      }
       return format(parsed, 'yyyy-MM-dd');
     }
   } catch (e) {
     // ignore
   }
 
-  return format(today, 'yyyy-MM-dd');
+  return format(today, 'yyyy-MM-dd').replace(/^\d{4}/, currentYear.toString());
 }
 
 /**

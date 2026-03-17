@@ -179,13 +179,18 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
 
     // Send confirmation email
     if (result.patientEmail) {
-      sendAppointmentConfirmationEmail({
+      const emailResult = await sendAppointmentConfirmationEmail({
         userEmail: result.patientEmail,
         doctorName: result.doctorName,
         appointmentDate: result.date,
         appointmentTime: result.time,
         appointmentType: result.reason
-      }).catch(err => console.error("Failed to send confirmation email:", err));
+      });
+      if (emailResult.success) {
+        console.log(`[APPOINTMENTS_ACTION] Email sent successfully for appointment: ${result.id}`);
+      } else {
+        console.error(`[APPOINTMENTS_ACTION] Email failed for appointment: ${result.id}`, emailResult.error);
+      }
     }
 
     return result;

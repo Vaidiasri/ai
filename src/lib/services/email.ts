@@ -23,7 +23,14 @@ export async function sendAppointmentConfirmationEmail({
   duration = "30 mins",
   price = "Free",
 }: SendAppointmentEmailParams) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || apiKey === 'dummy_key') {
+    console.warn("[EMAIL_SERVICE] WARNING: RESEND_API_KEY is missing or invalid.");
+  }
+
   console.log(`[EMAIL_SERVICE] Attempting to send email to: ${userEmail}`);
+  console.log(`[EMAIL_SERVICE] Details: Dr. ${doctorName}, Date: ${appointmentDate}, Time: ${appointmentTime}`);
+
   try {
     const { data, error } = await resend.emails.send({
       from: "DentWise <onboarding@resend.dev>",
@@ -40,11 +47,11 @@ export async function sendAppointmentConfirmationEmail({
     });
 
     if (error) {
-      console.error("[EMAIL_SERVICE] Resend API error:", error);
+      console.error("[EMAIL_SERVICE] Resend API error:", JSON.stringify(error, null, 2));
       return { success: false, error };
     }
 
-    console.log("[EMAIL_SERVICE] Email sent successfully via Resend. ID:", data?.id);
+    console.log("[EMAIL_SERVICE] Email sent successfully via Resend. Response data:", JSON.stringify(data, null, 2));
     return { success: true, emailId: data?.id };
   } catch (err) {
     console.error("Email service error:", err);
