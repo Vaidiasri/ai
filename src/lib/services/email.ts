@@ -47,7 +47,8 @@ export async function sendAppointmentConfirmationEmail({
     });
 
     if (error) {
-      console.error("[EMAIL_SERVICE] Resend API error:", JSON.stringify(error, null, 2));
+      console.error("[EMAIL_SERVICE] Resend API error (Raw):", error);
+      console.error("[EMAIL_SERVICE] Resend API error (JSON):", JSON.stringify(error, null, 2));
       return { success: false, error };
     }
 

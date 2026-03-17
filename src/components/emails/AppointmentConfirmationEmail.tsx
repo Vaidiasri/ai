@@ -109,7 +109,7 @@ function AppointmentConfirmationEmail({
 
 export default AppointmentConfirmationEmail;
 
-// 🤡🤡🤡🤡🤡 styles that were generated using AI 🤡🤡🤡🤡🤡
+// --- Component Styles ---
 const main = {
   backgroundColor: "#ffffff",
   fontFamily:
