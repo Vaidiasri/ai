@@ -15,6 +15,7 @@ import {
   useUserAppointments,
 } from "@/hooks/use-appointment";
 import { bookAppointment } from "@/lib/actions/appointments";
+import { createPaymentSession } from "@/lib/actions/payments";
 import { APPOINTMENT_TYPES } from "@/lib/utils";
 
 function AppointmentsPage() {
@@ -61,22 +62,19 @@ function AppointmentsPage() {
         reason: appointmentType?.name,
       });
 
-      console.log("[CLIENT] Booking success:", appointment);
-      setBookedAppointment(appointment);
+      console.log("[CLIENT] Booking success (PENDING):", appointment);
+      
+      // 2. Create Payment Session (Mock or Stripe)
+      const session = await createPaymentSession({
+        appointmentId: appointment.id,
+        customerEmail: appointment.patientEmail,
+        amountInCents: appointmentType?.priceInCents || 0,
+        doctorName: appointment.doctorName,
+      });
 
-      // Refresh list
-      refetchUserAppointments();
-
-      // Email is now handled server-side in the bookAppointment action
-      // for both Voice and manual UI flows to ensure consistency.
-
-      setShowConfirmationModal(true);
-      // Reset form
-      setSelectedDentistId(null);
-      setSelectedDate("");
-      setSelectedTime("");
-      setSelectedType("");
-      setCurrentStep(1);
+      console.log("[CLIENT] Redirecting to Checkout:", session.url);
+      window.location.href = session.url;
+      
     } catch (error: any) {
       console.error("[CLIENT] Booking failed:", error);
       toast.error(`Failed to book appointment: ${error.message || "Unknown error"}`);
