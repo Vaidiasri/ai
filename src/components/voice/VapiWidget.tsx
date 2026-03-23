@@ -97,29 +97,14 @@ function VapiWidget() {
         console.log("Starting Vapi Call with Assistant ID:", assistantId);
 
         // Import our upgraded prompts
-        const { FIRST_MESSAGE, SYSTEM_PROMPT } = await import(
-          "@/lib/vapi-prompt"
-        );
-
-        // Re-introducing professional overrides with a valid model configuration
+        // Rely entirely on Vapi dashboard configuration for prompt and tools
         console.log("Starting Vapi Call with User:", user?.id);
 
         await vapi.start(assistantId!, {
-          firstMessage: FIRST_MESSAGE,
           variableValues: {
             name: user?.firstName || "Guest",
             userId: user?.id || "",
-          },
-          model: {
-            provider: "openai",
-            model: "gpt-4o",
-            messages: [
-              {
-                role: "system",
-                content: SYSTEM_PROMPT,
-              },
-            ],
-          } as any,
+          }
         });
       } catch (error) {
         console.log("Failed to start call", error);
