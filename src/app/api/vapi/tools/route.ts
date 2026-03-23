@@ -56,15 +56,63 @@ export async function POST(req: NextRequest) {
       try {
         if (name === "get_doctors") {
           console.log("[VAPI] Tool Called: get_doctors");
-          const doctors = await getAvailableDoctors();
-          result = doctors.map(d => ({
-            id: d.id,
-            name: d.name,
-            speciality: d.speciality,
-            phone: d.phone,
-            isActive: d.isActive
-          }));
-          console.log(`[VAPI] Found ${doctors.length} doctors.`);
+          const { latitude, longitude, speciality, location } = args;
+          console.log("[VAPI] get_doctors args:", { latitude, longitude, speciality, location });
+          
+          try {
+            // If a location string is provided, search Google Places for REAL doctors
+            if (location) {
+              const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY;
+              if (GOOGLE_KEY) {
+                const query = `${speciality || "dentist"} near ${location}`;
+                console.log("[VAPI] Searching Google Places:", query);
+                
+                const placesRes = await fetch(
+                  `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_KEY}`
+                );
+                const placesData = await placesRes.json();
+                console.log("[VAPI] Google Places status:", placesData.status);
+                
+                if (placesData.status === "OK" && placesData.results) {
+                  result = placesData.results.slice(0, 5).map((place: any) => ({
+                    id: `google_${place.place_id}`,
+                    name: place.name,
+                    speciality: speciality || "General Dentistry",
+                    clinicName: place.formatted_address || "External Clinic",
+                    isPartner: false,
+                    distance: place.rating ? `Rating: ${place.rating}/5` : 'N/A'
+                  }));
+                  console.log(`[VAPI] Found ${result.length} real-world doctors from Google.`);
+                } else {
+                  console.warn("[VAPI] Google Places returned no results. Status:", placesData.status, placesData.error_message);
+                  result = [];
+                }
+              } else {
+                console.warn("[VAPI] GOOGLE_MAPS_API_KEY missing, cannot search for real doctors.");
+                result = [];
+              }
+            } else {
+              // Fallback: no location → fetch from local DB
+              const doctors = await getAvailableDoctors({ 
+                latitude: latitude ? parseFloat(latitude) : undefined, 
+                longitude: longitude ? parseFloat(longitude) : undefined, 
+                speciality 
+              });
+              result = doctors.map(d => ({
+                id: d.id,
+                name: d.name,
+                speciality: d.speciality,
+                clinicName: d.clinicName,
+                isPartner: d.isPartner,
+                distance: d.distance ? String(d.distance) : 'N/A'
+              }));
+              console.log(`[VAPI] Found ${doctors.length} doctors from local DB.`);
+            }
+          } catch (doctorErr: any) {
+            console.error("[VAPI] get_doctors INNER ERROR:", doctorErr.message);
+            console.error("[VAPI] get_doctors STACK:", doctorErr.stack);
+            result = { error: "Doctor search failed: " + doctorErr.message };
+          }
         } else if (name === "get_current_user") {
           console.log("[VAPI] Tool Called: get_current_user");
           let userId = 
