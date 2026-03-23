@@ -73,23 +73,19 @@ export async function POST(req: NextRequest) {
                 const placesData = await placesRes.json();
                 console.log("[VAPI] Google Places status:", placesData.status);
                 
-                if (placesData.status === "OK" && placesData.results) {
-                  result = placesData.results.slice(0, 5).map((place: any) => ({
-                    id: `google_${place.place_id}`,
-                    name: place.name,
-                    speciality: speciality || "General Dentistry",
-                    clinicName: place.formatted_address || "External Clinic",
-                    isPartner: false,
-                    distance: place.rating ? `Rating: ${place.rating}/5` : 'N/A'
-                  }));
-                  console.log(`[VAPI] Found ${result.length} real-world doctors from Google.`);
+                if (placesData.status === "OK" && placesData.results && placesData.results.length > 0) {
+                  const docs = placesData.results.slice(0, 5).map((place: any) => 
+                    `${place.name} at ${place.formatted_address} (Rating: ${place.rating || 'N/A'})`
+                  ).join(" | ");
+                  result = `Found these clinics: ${docs}`;
+                  console.log(`[VAPI] Found ${placesData.results.length} real-world doctors from Google.`);
                 } else {
                   console.warn("[VAPI] Google Places returned no results. Status:", placesData.status, placesData.error_message);
-                  result = [];
+                  result = "No clinics found in this area.";
                 }
               } else {
                 console.warn("[VAPI] GOOGLE_MAPS_API_KEY missing, cannot search for real doctors.");
-                result = [];
+                result = "No clinics found because the search API is not configured.";
               }
             } else {
               // Fallback: no location → fetch from local DB
@@ -98,14 +94,15 @@ export async function POST(req: NextRequest) {
                 longitude: longitude ? parseFloat(longitude) : undefined, 
                 speciality 
               });
-              result = doctors.map(d => ({
-                id: d.id,
-                name: d.name,
-                speciality: d.speciality,
-                clinicName: d.clinicName,
-                isPartner: d.isPartner,
-                distance: d.distance ? String(d.distance) : 'N/A'
-              }));
+              
+              if (doctors.length > 0) {
+                const docs = doctors.map(d => 
+                  `${d.name} (${d.speciality}) at ${d.clinicName} ${d.distance ? '- Distance: ' + d.distance : ''}`
+                ).join(" | ");
+                result = `Found these local clinics: ${docs}`;
+              } else {
+                result = "No local clinics found.";
+              }
               console.log(`[VAPI] Found ${doctors.length} doctors from local DB.`);
             }
           } catch (doctorErr: any) {
@@ -236,13 +233,13 @@ export async function POST(req: NextRequest) {
             }, userId);
             
             console.log(`[VAPI] Success! Appointment created: ${appointment.id}`);
-            result = { success: true, appointmentId: appointment.id, message: "Appointment booked successfully" };
+            result = `Success! Appointment booked successfully. Appointment ID: ${appointment.id}`;
           }
         } else if (name === "send_test_email") {
           console.log("[VAPI] Tool Called: send_test_email");
           const email = args.email || args.userEmail;
           if (!email) {
-            result = { error: "Email address is required" };
+            result = "Error: Email address is required.";
           } else {
             const emailRes = await sendAppointmentConfirmationEmail({
               userEmail: email,
@@ -251,14 +248,10 @@ export async function POST(req: NextRequest) {
               appointmentTime: new Date().toLocaleTimeString(),
               appointmentType: "System Diagnostic Test"
             });
-            result = { 
-              success: emailRes.success, 
-              message: emailRes.success ? "Test email sent" : "Test email failed",
-              details: emailRes.error ? JSON.stringify(emailRes.error) : "Check Resend dashboard"
-            };
+            result = emailRes.success ? "Test email sent successfully." : "Test email failed to send.";
           }
         } else {
-          result = { error: `Tool ${name} not found` };
+          result = `Error: Tool ${name} not found`;
         }
       } catch (err: any) {
         console.error(`Error executing ${name}:`, err);
@@ -273,7 +266,6 @@ export async function POST(req: NextRequest) {
     }
 
     const response = NextResponse.json({
-      message: "Tool executed",
       results: results
     });
 
