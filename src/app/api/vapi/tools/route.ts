@@ -30,6 +30,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Pong", results: [] });
     }
 
+    // Persist log to file for debugging
+    try {
+      const fs = require('fs');
+      const logMsg = `\n[${new Date().toISOString()}] REQUEST: ${JSON.stringify(message, null, 2)}\n`;
+      fs.appendFileSync('c:/Users/ghild/OneDrive/Desktop/fullstackai/vapi_webhook_logs.txt', logMsg);
+    } catch (e) {}
+
     if (!rawBody) {
       return NextResponse.json({ error: "Empty request body" }, { status: 400 });
     }
@@ -56,59 +63,30 @@ export async function POST(req: NextRequest) {
       try {
         if (name === "get_doctors") {
           console.log("[VAPI] Tool Called: get_doctors");
-          const { latitude, longitude, speciality, location } = args;
-          console.log("[VAPI] get_doctors args:", { latitude, longitude, speciality, location });
+          const { latitude, longitude, speciality } = args;
+          console.log("[VAPI] get_doctors args:", { latitude, longitude, speciality });
           
           try {
-            // If a location string is provided, search Google Places for REAL doctors
-            if (location) {
-              const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY;
-              if (GOOGLE_KEY) {
-                const query = `${speciality || "dentist"} near ${location}`;
-                console.log("[VAPI] Searching Google Places:", query);
-                
-                const placesRes = await fetch(
-                  `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_KEY}`
-                );
-                const placesData = await placesRes.json();
-                console.log("[VAPI] Google Places status:", placesData.status);
-                
-                if (placesData.status === "OK" && placesData.results && placesData.results.length > 0) {
-                  const docs = placesData.results.slice(0, 5).map((place: any) => 
-                    `${place.name} at ${place.formatted_address} (Rating: ${place.rating || 'N/A'})`
-                  ).join(" | ");
-                  result = `Found these clinics: ${docs}`;
-                  console.log(`[VAPI] Found ${placesData.results.length} real-world doctors from Google.`);
-                } else {
-                  console.warn("[VAPI] Google Places returned no results. Status:", placesData.status, placesData.error_message);
-                  result = "No clinics found in this area.";
-                }
-              } else {
-                console.warn("[VAPI] GOOGLE_MAPS_API_KEY missing, cannot search for real doctors.");
-                result = "No clinics found because the search API is not configured.";
-              }
+            // Fetch from local DB exclusively
+            const doctors = await getAvailableDoctors({ 
+              latitude: latitude ? parseFloat(latitude) : undefined, 
+              longitude: longitude ? parseFloat(longitude) : undefined, 
+              speciality 
+            });
+            
+            if (doctors.length > 0) {
+              const docs = doctors.map(d => 
+                `${d.name} (${d.speciality}) at ${d.clinicName} ${d.distance ? '- Distance: ' + d.distance : ''}`
+              ).join(" | ");
+              result = `Found these local clinics: ${docs}`;
             } else {
-              // Fallback: no location → fetch from local DB
-              const doctors = await getAvailableDoctors({ 
-                latitude: latitude ? parseFloat(latitude) : undefined, 
-                longitude: longitude ? parseFloat(longitude) : undefined, 
-                speciality 
-              });
-              
-              if (doctors.length > 0) {
-                const docs = doctors.map(d => 
-                  `${d.name} (${d.speciality}) at ${d.clinicName} ${d.distance ? '- Distance: ' + d.distance : ''}`
-                ).join(" | ");
-                result = `Found these local clinics: ${docs}`;
-              } else {
-                result = "No local clinics found.";
-              }
-              console.log(`[VAPI] Found ${doctors.length} doctors from local DB.`);
+              result = "No matching doctors found in our database currently.";
             }
+            console.log(`[VAPI] Found ${doctors.length} doctors from local DB.`);
           } catch (doctorErr: any) {
             console.error("[VAPI] get_doctors INNER ERROR:", doctorErr.message);
             console.error("[VAPI] get_doctors STACK:", doctorErr.stack);
-            result = { error: "Doctor search failed: " + doctorErr.message };
+            result = "Doctor search failed: " + doctorErr.message;
           }
         } else if (name === "get_current_user") {
           console.log("[VAPI] Tool Called: get_current_user");
@@ -229,7 +207,7 @@ export async function POST(req: NextRequest) {
               doctorId,
               date: parsedDate,
               time: parsedTime,
-              reason: args.reason || "Voice assistant booking"
+              reason: args.type ? `${args.type} Appointment${args.reason ? ' - ' + args.reason : ''}` : (args.reason || "Voice assistant booking")
             }, userId);
             
             console.log(`[VAPI] Success! Appointment created: ${appointment.id}`);

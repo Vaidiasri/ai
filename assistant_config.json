@@ -1,0 +1,168 @@
+{
+  "id": "9942cd04-f8d2-4571-a946-39736d93f8d6",
+  "orgId": "08206c4e-d3c0-4afe-97bd-684535e87e70",
+  "name": "DentWise",
+  "voice": {
+    "voiceId": "Elliot",
+    "provider": "vapi"
+  },
+  "createdAt": "2026-02-08T16:42:43.224Z",
+  "updatedAt": "2026-03-23T11:35:30.158Z",
+  "model": {
+    "model": "gpt-4o-mini",
+    "tools": [
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "get_doctors",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "speciality": {
+                "type": "string",
+                "description": "The medical specialty needed (e.g., Dentist, General Physician, Cardiologist, etc.)"
+              }
+            }
+          },
+          "description": "Get a list of available doctors from our network based on the patient's needed specialty."
+        },
+        "messages": [
+          {
+            "type": "request-start",
+            "content": "Let me check our network for available specialists. One moment, please."
+          }
+        ]
+      },
+      {
+        "type": "function",
+        "async": true,
+        "function": {
+          "name": "initiate_payment",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "doctorId",
+              "date",
+              "time",
+              "type",
+              "amount"
+            ],
+            "properties": {
+              "date": {
+                "type": "string"
+              },
+              "time": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "Virtual",
+                  "Physical"
+                ],
+                "type": "string"
+              },
+              "amount": {
+                "type": "number"
+              },
+              "doctorId": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Call this tool to send a payment link to the user's screen before booking the appointment."
+        },
+        "messages": [
+          {
+            "type": "request-start",
+            "content": "I'm sending a secure payment prompt to your screen now. Let me know once you have completed the payment."
+          }
+        ]
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "book_appointment",
+          "parameters": {
+            "type": "object",
+            "required": [
+              "doctorId",
+              "date",
+              "time",
+              "type"
+            ],
+            "properties": {
+              "date": {
+                "type": "string"
+              },
+              "time": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "Virtual",
+                  "Physical"
+                ],
+                "type": "string"
+              },
+              "doctorId": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Book an appointment with a specific doctor ONLY after payment is successful."
+        },
+        "messages": [
+          {
+            "type": "request-start",
+            "content": "Setting up your appointment in our system now."
+          }
+        ]
+      }
+    ],
+    "provider": "openai"
+  },
+  "firstMessage": "Hi {{name}}! This is Riley, your personal Healthcare Assistant from DentWise. I can help you find specialists for any health issue, recommend doctors based on your requirements, and even book your appointment directly. How can I assist you today?",
+  "voicemailMessage": "Please call back when you're available.",
+  "endCallMessage": "Goodbye.",
+  "transcriber": {
+    "model": "flux-general-en",
+    "language": "en",
+    "provider": "deepgram"
+  },
+  "clientMessages": [
+    "conversation-update",
+    "function-call",
+    "hang",
+    "model-output",
+    "speech-update",
+    "status-update",
+    "transfer-update",
+    "transcript",
+    "tool-calls",
+    "user-interrupted",
+    "voice-input",
+    "assistant.started"
+  ],
+  "serverMessages": [
+    "conversation-update",
+    "end-of-call-report",
+    "function-call",
+    "hang",
+    "speech-update",
+    "status-update",
+    "tool-calls",
+    "user-interrupted",
+    "assistant.started"
+  ],
+  "analysisPlan": {
+    "summaryPlan": {
+      "enabled": false
+    },
+    "successEvaluationPlan": {
+      "enabled": false
+    }
+  },
+  "isServerUrlSecretSet": false
+}
