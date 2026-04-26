@@ -6,6 +6,8 @@ import { format } from "date-fns";
 import { prisma } from "../prisma";
 import { sendAppointmentConfirmationEmail } from "../services/email";
 import { parseVapiDate, normalizeVapiTime } from "../utils/vapi-utils";
+import { createAuditLog } from "../security/audit";
+import { isAdmin, isParticipant, guard } from "../security/access";
 
 /**
  * Transforms a Prisma appointment into a flat, serializable object.
@@ -33,6 +35,7 @@ function transformAppointment(appointment: any) {
 
 export async function getAppointments() {
   try {
+    await guard(isAdmin(), "Unauthorized: Admin access required to view all appointments");
     const appointments = await prisma.appointment.findMany({
       include: {
         user: { select: { firstName: true, lastName: true, email: true } },
@@ -51,7 +54,12 @@ export async function getAppointments() {
 export async function getUserAppointments() {
   try {
     const { userId } = await auth();
-    if (!userId) throw new Error("You must be logged in to view appointments");
+    if (!userId) {
+      console.warn("[APPOINTMENTS_ACTION] No userId found in auth session.");
+      return [];
+    }
+
+    await createAuditLog("VIEW_APPOINTMENTS", { actorId: userId, metadata: { context: "USER_APPOINTMENTS_LIST" } });
 
     const user = await prisma.user.findUnique({ where: { clerkId: userId } });
     if (!user) return [];
@@ -161,7 +169,7 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
         date: new Date(normalizedDate),
         time: normalizedTime,
         reason: input.reason || "General consultation",
-        status: "CONFIRMED",
+        status: "PENDING",
       },
       include: {
         user: { select: { firstName: true, lastName: true, email: true } },
@@ -169,10 +177,16 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
       },
     });
 
+    await createAuditLog("CREATE_APPOINTMENT", { 
+      actorId: finalUserId, 
+      targetId: appointment.id,
+      metadata: { doctorId: input.doctorId, date: input.date } 
+    });
+
     const result = transformAppointment(appointment);
 
-    // --- EMAIL (Silent failure) ---
-    if (result.patientEmail) {
+    // --- EMAIL (Only if CONFIRMED) ---
+    if (result.patientEmail && result.status === "CONFIRMED") {
       // Professional formatting for email: e.g. "Friday, March 20, 2026"
       const formattedDateForEmail = format(new Date(result.date), "EEEE, MMMM d, yyyy");
       
@@ -194,10 +208,23 @@ export async function bookAppointment(input: BookAppointmentInput, overrideUserI
 
 export async function updateAppointmentStatus(input: { id: string; status: AppointmentStatus }) {
   try {
-    return await prisma.appointment.update({
+    const { userId } = await auth();
+    if (!userId) throw new Error("Authentication required");
+
+    await guard(isParticipant(input.id, "appointment"), "Unauthorized: You do not have permission to update this appointment");
+
+    const appointment = await prisma.appointment.update({
       where: { id: input.id },
       data: { status: input.status },
     });
+
+    await createAuditLog("UPDATE_APPOINTMENT", { 
+      actorId: userId, 
+      targetId: appointment.id,
+      metadata: { newStatus: input.status } 
+    });
+
+    return appointment;
   } catch (error) {
     console.error("Error updating status:", error);
     throw new Error("Failed to update status");

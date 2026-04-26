@@ -87,3 +87,22 @@ enum AppointmentStatus {
   CANCELLED
   COMPLETED
 }
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String   // e.g., "VIEW_PRESCRIPTION", "JOIN_VIDEO"
+  actorId   String   // Clerk ID or System
+  targetId  String?  // ID of the resource
+  metadata  Json?    // { ip: string, userAgent: string, source: string }
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model StripeEvent {
+  id        String   @id // stripe_event_id
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("stripe_events")
+}
