@@ -3,11 +3,13 @@
 import { useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { vapi } from "@/lib/vapi";
+import { toast } from "sonner";
+import { vapi, isVapiConfigured } from "@/lib/vapi";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { getAvailableDoctors } from "@/lib/actions/doctors";
 import { bookAppointment } from "@/lib/actions/appointments";
+import { parseAppointmentDate, toCanonicalTime } from "@/lib/utils/time";
 
 function VapiWidget() {
   const [callActive, setCallActive] = useState(false);
@@ -24,7 +26,12 @@ function VapiWidget() {
   const [debugOutput, setDebugOutput] = useState<string>("");
 
   const { user, isLoaded } = useUser();
+  const userRef = useRef(user);
+  const callActiveRef = useRef(false);
+  const paymentTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const messageContainerRef = useRef<HTMLDivElement>(null);
+
+  userRef.current = user;
 
   // auto-scroll for messages
   useEffect(() => {
@@ -37,133 +44,175 @@ function VapiWidget() {
   // setup event listeners for VAPI
   useEffect(() => {
     const handleCallStart = () => {
-      console.log("Call started");
       setConnecting(false);
       setCallActive(true);
+      callActiveRef.current = true;
       setCallEnded(false);
     };
 
     const handleCallEnd = () => {
-      console.log("Call ended");
       setCallActive(false);
+      callActiveRef.current = false;
       setConnecting(false);
       setIsSpeaking(false);
       setCallEnded(true);
     };
 
-    const handleSpeechStart = () => {
-      console.log("AI started Speaking");
-      setIsSpeaking(true);
+    const handleSpeechStart = () => setIsSpeaking(true);
+    const handleSpeechEnd = () => setIsSpeaking(false);
+
+    const sendToolResult = (toolCallId: string | undefined, content: string) => {
+      if (!toolCallId) return;
+      vapi.send({
+        type: "add-message",
+        message: {
+          role: "tool",
+          content,
+          tool_call_id: toolCallId,
+        },
+      } as Parameters<typeof vapi.send>[0]);
     };
 
-    const handleSpeechEnd = () => {
-      console.log("AI stopped Speaking");
-      setIsSpeaking(false);
-    };
-
-    const handleMessage = async (message: any) => {
-      // DEBUG: Log ALL messages from Vapi
-      console.log(`[VAPI MESSAGE: ${message.type}]`, message);
-
+    const handleMessage = async (message: {
+      type: string;
+      transcript?: string;
+      transcriptType?: string;
+      role?: string;
+      toolCalls?: unknown[];
+      toolCallList?: unknown[];
+      toolWithToolCallList?: unknown[];
+      functionCall?: unknown;
+    }) => {
       if (message.type === "transcript" && message.transcriptType === "final") {
         const newMessage = { content: message.transcript, role: message.role };
         setMessages((prev) => [...prev, newMessage]);
       } else if (message.type === "tool-calls" || message.type === "function-call") {
-        console.log("------------------- TOOL/FUNCTION CALL DETECTED -------------------");
-        console.log("Full Message Object:", JSON.stringify(message, null, 2));
-        
-        // Vapi sends tool calls in various formats across versions/configs
         const { toolCalls, toolCallList, toolWithToolCallList, functionCall } = message;
-        let calls = toolCalls || toolCallList || toolWithToolCallList || [];
-        
+        let calls = (toolCalls || toolCallList || toolWithToolCallList || []) as Array<{
+          toolCall?: { id?: string; function?: { name?: string; arguments?: string | Record<string, unknown> } };
+          id?: string;
+          function?: { name?: string; arguments?: string | Record<string, unknown>; args?: Record<string, unknown> };
+          name?: string;
+          arguments?: string | Record<string, unknown>;
+          args?: Record<string, unknown>;
+        }>;
+
         if (calls.length === 0 && functionCall) {
-          calls = [{ toolCall: functionCall, function: functionCall }];
+          calls = [{ function: functionCall as { name?: string; arguments?: string } }];
         }
 
-        console.log(`Processing ${calls.length} calls...`);
-        
         for (const item of calls) {
-          const toolCall = item.toolCall || item; 
-          const { id: toolCallId, function: fn } = toolCall;
-          const name = fn?.name || toolCall.name || (typeof toolCall === 'string' ? toolCall : "");
-          let args = fn?.arguments || toolCall.arguments || toolCall.args || {};
-          
-          if (typeof args === "string") {
-            try { args = JSON.parse(args); } catch (e) {}
+          const toolCall = item.toolCall || item;
+          const toolCallId = toolCall.id;
+          const fn = toolCall.function || item.function;
+          const name = fn?.name || item.name || "";
+          let args: Record<string, unknown> =
+            (fn as { args?: Record<string, unknown> })?.args ||
+            item.args ||
+            {};
+
+          const rawArgs = fn?.arguments ?? item.arguments;
+          if (typeof rawArgs === "string") {
+            try {
+              args = JSON.parse(rawArgs) as Record<string, unknown>;
+            } catch {
+              sendToolResult(toolCallId, JSON.stringify({ error: "Invalid tool arguments" }));
+              continue;
+            }
+          } else if (rawArgs && typeof rawArgs === "object") {
+            args = rawArgs as Record<string, unknown>;
           }
 
-          console.log(`>>> EXECUTING [${name}] ON CLIENT`, { toolCallId, args });
           setDebugTool(`${name}(${JSON.stringify(args)})`);
 
           if (name === "get_doctors") {
             try {
-              console.log("Searching DB for doctors...");
-              const doctors = await getAvailableDoctors(args);
-              console.log("Database result:", doctors);
-              
-              const output = JSON.stringify(doctors);
-              
+              const doctors = await getAvailableDoctors({
+                latitude: args.latitude != null ? Number(args.latitude) : undefined,
+                longitude: args.longitude != null ? Number(args.longitude) : undefined,
+                speciality: typeof args.speciality === "string" ? args.speciality : undefined,
+              });
               setDebugOutput(`Found ${doctors.length} doctors.`);
-              console.log("Sending check-out (add-message) back to Vapi...");
-              vapi.send({
-                type: 'add-message',
-                message: {
-                  role: 'tool',
-                  content: output,
-                  tool_call_id: toolCallId,
-                }
-              } as any);
-            } catch (err: any) {
-              console.error("Tool execution failed:", err);
-              setDebugOutput("Error: " + err.message);
-              vapi.send({
-                type: 'add-message',
-                message: {
-                  role: 'tool',
-                  content: JSON.stringify({ error: "Internal error fetching doctors." }),
-                  tool_call_id: toolCallId,
-                }
-              } as any);
+              sendToolResult(toolCallId, JSON.stringify(doctors));
+            } catch (err: unknown) {
+              const errMsg = err instanceof Error ? err.message : "Unknown error";
+              setDebugOutput(`Error: ${errMsg}`);
+              sendToolResult(
+                toolCallId,
+                JSON.stringify({ error: "Failed to fetch doctors." }),
+              );
             }
           } else if (name === "initiate_payment") {
             setPaymentDetails(args);
             setShowPayment(true);
             setDebugOutput("Payment link displayed.");
+            sendToolResult(
+              toolCallId,
+              JSON.stringify({ status: "payment_ui_shown" }),
+            );
           } else if (name === "book_appointment") {
-            try {
-              const result = await bookAppointment(args, user?.id);
-              vapi.send({
-                type: 'add-message',
-                message: {
-                  role: 'tool',
-                  content: JSON.stringify({ success: true, bookingId: result.id }),
-                  tool_call_id: toolCallId,
-                }
-              } as any);
-            } catch (err: any) {
-              vapi.send({
-                type: 'add-message',
-                message: {
-                  role: 'tool',
-                  content: JSON.stringify({ error: "Booking failed." }),
-                  tool_call_id: toolCallId,
-                }
-              } as any);
+            if (!userRef.current?.id) {
+              sendToolResult(
+                toolCallId,
+                JSON.stringify({ error: "You must be logged in to book." }),
+              );
+              continue;
             }
+
+            try {
+              let doctorId = String(args.doctorId || args.doctor_id || args.doctor || "");
+              if (doctorId && (doctorId.includes(" ") || !doctorId.includes("-"))) {
+                const doctors = await getAvailableDoctors();
+                const found = doctors.find(
+                  (d) =>
+                    d.name.toLowerCase().includes(doctorId.toLowerCase()) ||
+                    doctorId.toLowerCase().includes(d.name.toLowerCase()),
+                );
+                if (found) doctorId = found.id;
+              }
+
+              const result = await bookAppointment({
+                doctorId,
+                date: parseAppointmentDate(
+                  String(args.date || args.appointmentDate || args.day || ""),
+                ),
+                time: toCanonicalTime(
+                  String(args.time || args.appointmentTime || args.slot || ""),
+                ),
+                reason:
+                  typeof args.type === "string"
+                    ? `${args.type} Appointment`
+                    : typeof args.reason === "string"
+                      ? args.reason
+                      : "Voice assistant booking",
+              });
+
+              setDebugOutput(`Booked: ${result.id}`);
+              sendToolResult(
+                toolCallId,
+                JSON.stringify({ success: true, bookingId: result.id }),
+              );
+            } catch (err: unknown) {
+              const errMsg = err instanceof Error ? err.message : "Booking failed";
+              setDebugOutput(`Error: ${errMsg}`);
+              sendToolResult(toolCallId, JSON.stringify({ error: errMsg }));
+            }
+          } else {
+            sendToolResult(
+              toolCallId,
+              JSON.stringify({ error: `Tool ${name} is not handled on the client.` }),
+            );
           }
         }
       }
     };
 
-    const handleError = (error: any) => {
+    const handleError = (error: { message?: string }) => {
       console.error("Vapi Session Error:", error);
-      console.log("Error details:", {
-        message: error?.message,
-        reason: error?.reason,
-        details: error?.details
-      });
+      toast.error(error?.message || "Voice call failed");
       setConnecting(false);
       setCallActive(false);
+      callActiveRef.current = false;
     };
 
     vapi
@@ -176,6 +225,12 @@ function VapiWidget() {
 
     // cleanup event listeners on unmount
     return () => {
+      paymentTimersRef.current.forEach(clearTimeout);
+      paymentTimersRef.current = [];
+      if (callActiveRef.current) {
+        vapi.stop();
+        callActiveRef.current = false;
+      }
       vapi
         .off("call-start", handleCallStart)
         .off("call-end", handleCallEnd)
@@ -186,56 +241,81 @@ function VapiWidget() {
     };
   }, []);
 
+  const resetCallState = () => {
+    setCallEnded(false);
+    setMessages([]);
+    setShowPayment(false);
+    setPaymentStatus("idle");
+    setPaymentDetails(null);
+    setDebugTool("");
+    setDebugOutput("");
+  };
+
   const toggleCall = async () => {
-    if (callActive) vapi.stop();
-    else {
-      try {
-        setConnecting(true);
-        setMessages([]);
-        setCallEnded(false);
-        setShowPayment(false);
-        setPaymentStatus("idle");
+    if (callActive) {
+      vapi.stop();
+      return;
+    }
 
-        const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID?.trim();
-        console.log("Starting Vapi Call with Assistant ID:", assistantId);
+    if (callEnded) {
+      resetCallState();
+    }
 
-        console.log("Starting Vapi Call with User:", user?.id);
+    const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID?.trim();
 
-        await vapi.start(assistantId!, {
-          variableValues: {
-            name: (user?.firstName || "").trim() || "there",
-            userId: user?.id || "",
-          }
-        });
-      } catch (error) {
-        console.log("Failed to start call", error);
-        setConnecting(false);
-      }
+    if (!isVapiConfigured) {
+      toast.error("Voice assistant is not configured (missing Vapi API key).");
+      return;
+    }
+
+    if (!assistantId) {
+      toast.error("Voice assistant is not configured (missing assistant ID).");
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error("Please sign in before starting a voice call.");
+      return;
+    }
+
+    try {
+      setConnecting(true);
+      resetCallState();
+
+      await vapi.start(assistantId, {
+        variableValues: {
+          name: (user.firstName || "").trim() || "there",
+          userId: user.id,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to start call", error);
+      toast.error("Could not start the voice call.");
+      setConnecting(false);
     }
   };
 
   const handlePaymentSuccess = () => {
     setPaymentStatus("processing");
-    
-    // Simulate payment delay
-    setTimeout(() => {
+
+    const t1 = setTimeout(() => {
       setPaymentStatus("success");
-      
-      // Tell Vapi that payment was successful so it can book
+
       vapi.send({
         type: "add-message",
         message: {
           role: "system",
-          content: "Payment successful. You may now book the appointment."
-        }
-      });
+          content: "Payment successful. You may now book the appointment.",
+        },
+      } as Parameters<typeof vapi.send>[0]);
 
-      // Close modal after a short delay
-      setTimeout(() => {
+      const t2 = setTimeout(() => {
         setShowPayment(false);
         setPaymentStatus("idle");
       }, 2000);
+      paymentTimersRef.current.push(t2);
     }, 2000);
+    paymentTimersRef.current.push(t1);
   };
 
   if (!isLoaded) return null;
@@ -412,7 +492,7 @@ function VapiWidget() {
                 : "bg-primary hover:bg-primary/90"
           } text-white relative`}
           onClick={toggleCall}
-          disabled={connecting || callEnded || showPayment}
+          disabled={connecting || showPayment}
         >
           {connecting && (
             <span className="absolute inset-0 rounded-full animate-ping bg-primary/50 opacity-75"></span>
@@ -424,7 +504,7 @@ function VapiWidget() {
               : connecting
                 ? "Connecting..."
                 : callEnded
-                  ? "Call Ended"
+                  ? "New Call"
                   : "Start Call"}
           </span>
         </Button>

@@ -101,7 +101,7 @@ function RecentAppointments() {
                   <TableCell>
                     <div>
                       <div className="font-medium">
-                        {new Date(appointment.date).toLocaleDateString()}
+                        {new Date(`${appointment.date}T12:00:00`).toLocaleDateString()}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {appointment.time}

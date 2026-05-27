@@ -1,3 +1,5 @@
+import { currentUser } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 import ActivityOverview from "@/components/dashboard/ActivityOverview";
 import MainActions from "@/components/dashboard/MainActions";
 import WelcomeSection from "@/components/dashboard/WelcomeSection";
@@ -5,7 +7,9 @@ import Navbar from "@/components/Navbar";
 
 export const dynamic = "force-dynamic";
 
-function DashboardPage() {
+async function DashboardPage() {
+  const user = await currentUser();
+  if (!user) redirect("/");
   return (
     <>
       <Navbar />
