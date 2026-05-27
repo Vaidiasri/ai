@@ -1,12 +1,21 @@
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { sendAppointmentConfirmationEmail } from "@/lib/services/email";
 
 export async function POST(request: Request) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await currentUser();
+    const userEmail = user?.emailAddresses[0]?.emailAddress;
+
     const body = await request.json();
 
     const {
-      userEmail,
+      userEmail: requestedEmail,
       doctorName,
       appointmentDate,
       appointmentTime,
@@ -15,17 +24,22 @@ export async function POST(request: Request) {
       price,
     } = body;
 
-    // validate required fields
-    if (!userEmail || !doctorName || !appointmentDate || !appointmentTime) {
+    if (!requestedEmail || !doctorName || !appointmentDate || !appointmentTime) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 },
       );
     }
 
-    // send the email using the centralized service
+    if (!userEmail || requestedEmail !== userEmail) {
+      return NextResponse.json(
+        { error: "Cannot send email to a different address" },
+        { status: 403 },
+      );
+    }
+
     const result = await sendAppointmentConfirmationEmail({
-      userEmail,
+      userEmail: requestedEmail,
       doctorName,
       appointmentDate,
       appointmentTime,

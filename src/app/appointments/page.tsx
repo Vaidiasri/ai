@@ -1,9 +1,8 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { format } from "date-fns";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AppointmentConfirmationModal } from "@/components/appointments/AppointmentConfirmationModal";
 import BookingConfirmationStep from "@/components/appointments/BookingConfirmationStep";
@@ -16,6 +15,7 @@ import {
 } from "@/hooks/use-appointment";
 import { bookAppointment } from "@/lib/actions/appointments";
 import { APPOINTMENT_TYPES } from "@/lib/utils";
+import { formatTimeForDisplay } from "@/lib/utils/time";
 
 function AppointmentsPage() {
   // state management for the booking process - this could be done with something like Zustand for larger apps
@@ -30,6 +30,7 @@ function AppointmentsPage() {
   const [bookedAppointment, setBookedAppointment] = useState<any>(null);
 
   const [isBooking, setIsBooking] = useState(false);
+  const queryClient = useQueryClient();
   const { data: userAppointments = [], refetch: refetchUserAppointments } = useUserAppointments();
 
   const handleSelectDentist = (dentistId: string) => {
@@ -64,8 +65,10 @@ function AppointmentsPage() {
       console.log("[CLIENT] Booking success:", appointment);
       setBookedAppointment(appointment);
 
-      // Refresh list
       refetchUserAppointments();
+      queryClient.invalidateQueries({
+        queryKey: ["getBookedTimeSlots", selectedDentistId, selectedDate],
+      });
 
       // Email is now handled server-side in the bookAppointment action
       // for both Voice and manual UI flows to ensure consistency.
@@ -143,10 +146,10 @@ function AppointmentsPage() {
           appointmentDetails={{
             doctorName: bookedAppointment.doctorName,
             appointmentDate: format(
-              new Date(bookedAppointment.date),
+              new Date(`${bookedAppointment.date}T12:00:00`),
               "EEEE, MMMM d, yyyy",
             ),
-            appointmentTime: bookedAppointment.time,
+            appointmentTime: formatTimeForDisplay(bookedAppointment.time),
             userEmail: bookedAppointment.patientEmail,
           }}
         />
@@ -183,9 +186,15 @@ function AppointmentsPage() {
                 </div>
                 <div className="space-y-1 text-sm">
                   <p className="text-muted-foreground">
-                    📅 {format(new Date(appointment.date), "MMM d, yyyy")}
+                    📅{" "}
+                    {format(
+                      new Date(`${appointment.date}T12:00:00`),
+                      "MMM d, yyyy",
+                    )}
                   </p>
-                  <p className="text-muted-foreground">🕐 {appointment.time}</p>
+                  <p className="text-muted-foreground">
+                    🕐 {formatTimeForDisplay(appointment.time)}
+                  </p>
                 </div>
               </div>
             ))}

@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { getNext5DaysLocal } from "@/lib/utils/time";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -27,20 +28,7 @@ export const formatPhoneNumber = (value: string) => {
   return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
 };
 
-//  ai generated 🎉
-export const getNext5Days = () => {
-  const dates = [];
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  for (let i = 0; i < 5; i++) {
-    const date = new Date(tomorrow);
-    date.setDate(date.getDate() + i);
-    dates.push(date.toISOString().split("T")[0]);
-  }
-
-  return dates;
-};
+export const getNext5Days = getNext5DaysLocal;
 
 export const getAvailableTimeSlots = () => {
   return [

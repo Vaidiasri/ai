@@ -60,7 +60,14 @@ DentWise is an advanced dental clinic management platform designed to streamline
 
    ```bash
    npx prisma generate
-   npx prisma db push
+   npx prisma migrate deploy
+   ```
+
+   If upgrading an existing database with appointment data:
+
+   ```bash
+   npm run db:migrate-times   # normalize times + dedupe slots
+   npx prisma migrate deploy  # apply indexes
    ```
 
 ### Configuration
@@ -78,6 +85,9 @@ CLERK_SECRET_KEY="..."
 # Vapi Voice Assistant
 NEXT_PUBLIC_VAPI_ASSISTANT_ID="..."
 NEXT_PUBLIC_VAPI_API_KEY="..."
+VAPI_WEBHOOK_SECRET="..."  # Same value as "Server URL Secret" in Vapi dashboard (can match VAPI_PRIVATE_KEY for dev)
+VAPI_PRIVATE_KEY="..."     # Vapi private API key (server-side scripts only)
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
 # Email Service (Resend)
 RESEND_API_KEY="..."

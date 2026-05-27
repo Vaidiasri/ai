@@ -2,11 +2,13 @@
 
 import { Prisma, type Gender } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/auth";
 import { prisma } from "../prisma";
 import { generateAvatar } from "../utils";
 
 export async function getDoctors() {
   try {
+    await requireAdmin();
     const doctors = await prisma.doctor.findMany({
       include: {
         _count: { select: { appointments: true } },
@@ -35,6 +37,8 @@ interface CreateDoctorInput {
 
 export async function createDoctor(input: CreateDoctorInput) {
   try {
+    await requireAdmin();
+
     if (!input.name || !input.email)
       throw new Error("Name and email are required");
 
@@ -66,7 +70,8 @@ interface UpdateDoctorInput extends Partial<CreateDoctorInput> {
 
 export async function updateDoctor(input: UpdateDoctorInput) {
   try {
-    // validate
+    await requireAdmin();
+
     if (!input.name || !input.email)
       throw new Error("Name and email are required");
 
@@ -147,7 +152,7 @@ export async function getAvailableDoctors(params: {
   try {
     let localDoctors: any[] = [];
 
-    if (latitude && longitude) {
+    if (latitude != null && longitude != null) {
       const radiusInDegrees = radius / 111;
       // Using $queryRaw for geospatial calculation with Bounding Box optimization
       const doctorsDb = await prisma.$queryRaw<any[]>`

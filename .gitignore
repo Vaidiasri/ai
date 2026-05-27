@@ -45,4 +45,23 @@ next-env.d.ts
 # Custom Logs
 cloudflare*.log
 next_*.log
+vapi_webhook_logs.txt
+
+# Local Vapi debug/migration scripts (may contain API keys)
+/*_fix.js
+/check_*.js
+/debug_*.js
+/get_full_*.js
+/list_*.js
+/migrate_*.js
+/seed_diverse_*.js
+/test_*.js
+/trigger_*.js
+/update_vapi_*.js
+/attach_tools.js
+/make_tools_client_side.js
+/all_*.json
+/assistant_config.json
+/tool_definition.json
+/vapi_error.json
 

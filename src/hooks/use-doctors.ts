@@ -49,7 +49,7 @@ export function useUpdateDoctor() {
 export function useAvailableDoctors() {
   const result = useQuery({
     queryKey: ["getAvailableDoctors"],
-    queryFn: getAvailableDoctors,
+    queryFn: () => getAvailableDoctors(),
   });
 
   return result;

@@ -5,6 +5,7 @@ import {
   getAvailableTimeSlots,
   getNext5Days,
 } from "@/lib/utils";
+import { formatTimeForDisplay } from "@/lib/utils/time";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 
@@ -103,7 +104,7 @@ function TimeSelectionStep({
               >
                 <div className="text-center">
                   <div className="font-medium">
-                    {new Date(date).toLocaleDateString("en-US", {
+                    {new Date(`${date}T12:00:00`).toLocaleDateString("en-US", {
                       weekday: "short",
                       month: "short",
                       day: "numeric",
@@ -133,7 +134,7 @@ function TimeSelectionStep({
                       }
                     >
                       <ClockIcon className="w-3 h-3 mr-1" />
-                      {time}
+                      {formatTimeForDisplay(time)}
                       {isBooked && " (Booked)"}
                     </Button>
                   );

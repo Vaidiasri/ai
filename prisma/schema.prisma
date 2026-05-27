@@ -69,6 +69,7 @@ model Appointment {
   doctor    Doctor            @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([doctorId, date, time])
   @@index([date])
   @@index([doctorId])
   @@index([status])
