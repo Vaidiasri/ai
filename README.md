@@ -1,121 +1,191 @@
-# DentWise: Modern Dental Management with AI Voice Integration
+# DentWise
 
-DentWise is an advanced dental clinic management platform designed to streamline patient booking, appointment management, and automated patient communication. Featuring a cutting-edge AI Voice Assistant, DentWise provides a seamless bridge between modern clinical needs and automated patient interactions.
+DentWise is a full-stack dental clinic management platform with an AI voice assistant. Patients can book appointments through the web or by talking to **Riley** (Vapi). Admins manage doctors, clinics, and appointments from a protected dashboard.
 
 ![DentWise Platform Banner](/public/dentwise-banner.png)
 
-## Core Features
+## Features
 
-### Intelligent Appointment Management
+- **3-step booking** — Select doctor, date/time, and appointment type
+- **Patient dashboard** — Overview, upcoming appointments, quick actions
+- **AI voice assistant** — Natural-language doctor search and booking (Vapi)
+- **Admin panel** — Doctor CRUD, appointment stats (email-gated via `ADMIN_EMAIL`)
+- **Confirmation emails** — Sent automatically via Resend after booking
+- **Slot protection** — Canonical time format + DB unique index on active appointments
 
-* **3-Step Patient Booking**: A structured workflow for selecting practitioners, services, and time slots.
-* **Clinic Dashboard**: A centralized administrative view for managing upcoming appointments and patient statistics.
-* **Real-time Availability**: Dynamic slot management to prevent double-bookings and ensure scheduling accuracy.
-
-### AI Voice Assistant (Powered by Vapi)
-
-* **Natural Language Booking**: Patients can schedule, reschedule, or inquire about appointments through a sophisticated voice interface.
-* **Seamless Integration**: The voice agent interacts directly with the system's database to retrieve availability and record bookings in real-time.
-
-### Enterprise-Grade Security
-
-* **Robust Authentication**: Powered by Clerk, supporting Google, GitHub, and secure Email/Password authentication.
-* **Session Management**: Secure handling of user sessions and protected API routes for administrative tasks.
-
-### Automated Notifications
-
-* **Confirmation Emails**: Professional email notifications sent via Resend immediately upon successful booking.
-* **Standardized Date Formatting**: Consistent, localized date and time representation across all communication channels.
-
-## Technology Stack
+## Tech Stack
 
 | Layer | Technologies |
-|---|---|
-| **Core Framework** | Next.js 15 (App Router), TypeScript |
-| **Styling** | Tailwind CSS, Shadcn UI, Radix UI |
-| **Database** | PostgreSQL, Prisma ORM |
-| **Authentication** | Clerk Auth |
-| **AI / Voice** | Vapi AI |
-| **Email Service** | Resend, React Email |
-| **State Management** | TanStack Query |
-| **Quality Control** | Biome (Linting & Formatting) |
+|-------|----------------|
+| Framework | Next.js 15 (App Router), React 19, TypeScript |
+| UI | Tailwind CSS 4, shadcn/ui, Radix UI |
+| Database | PostgreSQL (Neon), Prisma ORM |
+| Auth | Clerk |
+| Voice AI | Vapi (`@vapi-ai/web`) |
+| Email | Resend, React Email |
+| Data fetching | TanStack Query |
+| Lint / format | Biome |
+
+## Project Structure
+
+```
+src/
+├── app/
+│   ├── page.tsx              # Landing (redirects logged-in users to dashboard)
+│   ├── dashboard/            # Patient home
+│   ├── appointments/         # 3-step booking wizard
+│   ├── voice/                # Vapi voice UI
+│   ├── admin/                # Admin dashboard
+│   ├── pro/                  # Pricing / upgrade
+│   └── api/
+│       ├── vapi/tools/       # Vapi server webhook (tool execution)
+│       └── send-appointment-email/
+├── components/               # UI by feature (landing, dashboard, voice, admin)
+├── lib/
+│   ├── actions/              # Server Actions (appointments, doctors, users)
+│   ├── services/             # Email, core booking logic
+│   ├── auth.ts               # requireAuth, requireAdmin, Vapi webhook verify
+│   └── utils/time.ts         # Canonical date/time helpers
+prisma/                       # Schema + migrations
+scripts/                      # DB utilities (seed, time migration)
+```
 
 ## Getting Started
 
 ### Prerequisites
 
-* Node.js 18+
-* PostgreSQL Database
-* Accounts with Clerk, Vapi, and Resend
+- Node.js 18+
+- PostgreSQL database ([Neon](https://neon.tech) recommended)
+- [Clerk](https://clerk.com) application
+- [Vapi](https://vapi.ai) assistant
+- [Resend](https://resend.com) API key
 
-### Installation
+### Install
 
-1. Clone the repository and install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-2. Initialize the database schema:
-
-   ```bash
-   npx prisma generate
-   npx prisma migrate deploy
-   ```
-
-   If upgrading an existing database with appointment data:
-
-   ```bash
-   npm run db:migrate-times   # normalize times + dedupe slots
-   npx prisma migrate deploy  # apply indexes
-   ```
-
-### Configuration
-
-Create a `.env.local` file in the root directory and configure the following variables:
-
-```env
-# Database
-DATABASE_URL="postgresql://..."
-
-# Clerk Authentication
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="..."
-CLERK_SECRET_KEY="..."
-
-# Vapi Voice Assistant
-NEXT_PUBLIC_VAPI_ASSISTANT_ID="..."
-NEXT_PUBLIC_VAPI_API_KEY="..."
-VAPI_WEBHOOK_SECRET="..."  # Same value as "Server URL Secret" in Vapi dashboard (can match VAPI_PRIVATE_KEY for dev)
-VAPI_PRIVATE_KEY="..."     # Vapi private API key (server-side scripts only)
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-
-# Email Service (Resend)
-RESEND_API_KEY="..."
-
-# App Configuration
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-ADMIN_EMAIL="admin@example.com"
+```bash
+git clone https://github.com/Vaidiasri/ai.git
+cd ai
+npm install
 ```
 
-### Development
+### Environment Variables
 
-Start the development server:
+Create `.env.local` in the project root:
+
+```env
+# Database (use Neon pooler URL for the app)
+DATABASE_URL="postgresql://..."
+
+# Clerk
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_..."
+CLERK_SECRET_KEY="sk_..."
+
+# Vapi
+NEXT_PUBLIC_VAPI_ASSISTANT_ID="..."
+NEXT_PUBLIC_VAPI_API_KEY="..."
+VAPI_WEBHOOK_SECRET="..."          # Server URL secret in Vapi dashboard
+VAPI_PRIVATE_KEY="..."             # Optional: server-side Vapi API scripts
+
+# Resend
+RESEND_API_KEY="re_..."
+
+# App
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ADMIN_EMAIL="your-admin@email.com"
+
+# Optional
+GOOGLE_MAPS_API_KEY="..."          # Geocoded doctor search by location
+```
+
+### Database Setup
+
+**Fresh database:**
+
+```bash
+npx prisma generate
+npx prisma migrate deploy
+node scripts/seed-doctors.js       # optional sample doctors
+```
+
+**Existing database with appointment data:**
+
+```bash
+npm run db:migrate-times           # normalize legacy times + dedupe slots
+npx prisma migrate deploy
+```
+
+### Run Locally
 
 ```bash
 npm run dev
 ```
 
-## Maintenance & Code Quality
+Open [http://localhost:3000](http://localhost:3000).
 
-This project uses **Biome** for strict linting and formatting standards.
+## Vapi Configuration
+
+1. Create an assistant in the [Vapi dashboard](https://dashboard.vapi.ai).
+2. Attach tools: `get_doctors`, `get_current_user`, `initiate_payment`, `book_appointment`.
+3. Set the **Server URL** (for server-side tools):
+   - Local: use [ngrok](https://ngrok.com) → `https://<tunnel>/api/vapi/tools`
+   - Production: `https://<your-domain>/api/vapi/tools`
+4. Set **Server URL Secret** to the same value as `VAPI_WEBHOOK_SECRET` in `.env.local`.
+5. Client-side tools (`initiate_payment`, and optionally `get_doctors` / `book_appointment`) are handled in `VapiWidget.tsx`.
+
+Pass the Clerk user ID into calls via `variableValues.userId` so bookings attach to the correct patient.
+
+## NPM Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start dev server (Turbopack) |
+| `npm run build` | Prisma generate + production build |
+| `npm run start` | Start production server |
+| `npm run lint` | Biome check |
+| `npm run format` | Biome format |
+| `npm run db:migrate-times` | Normalize appointment times in DB |
+| `npm run db:migrate` | Time migration + `prisma migrate deploy` |
+| `npm run db:push` | Push schema without migrations (dev only) |
+
+## Deployment (Vercel)
+
+### Build status
+
+Production build: `npm run build` (includes `prisma generate`).
+
+### Checklist
+
+| Step | Action |
+|------|--------|
+| 1 | Push to GitHub |
+| 2 | Import project on Vercel |
+| 3 | Add all env vars from `.env.local` (use **production** Clerk keys) |
+| 4 | Set `NEXT_PUBLIC_APP_URL` to your production domain |
+| 5 | Run `npx prisma migrate deploy` (post-deploy or CI, prefer direct Neon URL for migrations) |
+| 6 | Configure Vapi Server URL → `https://<domain>/api/vapi/tools` |
+| 7 | Verify a custom domain in Resend and update `from` in `src/lib/services/email.ts` |
+
+### Production notes
+
+- **Resend**: Replace `onboarding@resend.dev` with a verified domain sender before launch.
+- **Clerk**: Use production keys (`pk_live_` / `sk_live_`), not test keys.
+- **Payments**: Voice payment UI is simulated; Stripe integration is not complete.
+- **Pro gating**: `/voice` may have plan checks disabled for testing — re-enable before monetizing.
+
+## Security
+
+- Admin server actions require `ADMIN_EMAIL` match
+- `/api/vapi/tools` requires `VAPI_WEBHOOK_SECRET` (development allows requests without secret with a warning)
+- `/api/send-appointment-email` requires Clerk auth; recipient must match signed-in user
+- Appointment times stored as canonical 24h `HH:mm`; active slots protected by partial unique index
+
+## Code Quality
 
 ```bash
-# Check for linting issue
 npm run lint
-
-# Automatically format code
 npm run format
 ```
 
 ---
-Developed with a focus on performance, scalability, and exceptional patient experience.
+
+Built for performance, secure booking, and a smooth patient experience.
