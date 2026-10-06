@@ -27,11 +27,11 @@ npm run build
 # Lint, then format (Biome, not ESLint or Prettier)
 npm run lint; npm run format
 
-# Type check (the build does NOT catch type errors, see Rules)
-npx tsc --noEmit
+# Type check (the build also fails on type errors)
+npm run typecheck
 
-# Test
-# none yet, there is no test runner or test script
+# Test (Vitest, files named src/**/*.test.ts)
+npm test
 ```
 
 ## Specs
@@ -44,7 +44,7 @@ Stored in `docs/specs/`. Format: `docs/specs/NNNN-title.md`.
 - Data access lives in server actions under `src/lib/actions` (`"use server"`), with shared logic in `src/lib/services`. Client components reach them only through TanStack Query hooks in `src/hooks`.
 - Guard every server action with `requireAuth()` or `requireAdmin()` from `src/lib/auth.ts`. Admin means the Clerk email equals `ADMIN_EMAIL`.
 - Use the single Prisma client from `src/lib/prisma.ts`; never create another `PrismaClient`.
-- `next.config.ts` sets `ignoreBuildErrors` and `ignoreDuringBuilds`, so a green build proves nothing about types. Run `npx tsc --noEmit` and `npm run lint` before you call work done.
+- The build checks types but skips ESLint (`ignoreDuringBuilds`; Biome is the linter). Run `npm run typecheck`, `npm test` and `npm run lint` before you call work done.
 - Secrets live in `.env.local` (git ignored by `.env*`). Put each comment on its own line there: `prisma.config.ts` parses the file itself and reads an inline `# comment` as part of the value. URL encode special characters in `DATABASE_URL` (for example `@` becomes `%40`).
 - Clerk is v6: use `SignedIn` and `SignedOut`, there is no `Show` component. `src/middleware.ts` runs `clerkMiddleware()`.
 - Biome formats with 2 space indents and skips `src/components/ui`; leave generated shadcn files as they are.
