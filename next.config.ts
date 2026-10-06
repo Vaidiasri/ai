@@ -19,11 +19,9 @@ const nextConfig: NextConfig = {
     ],
     unoptimized: true,
   },
+  // Biome is the linter (npm run lint); skip Next's ESLint pass.
   eslint: {
     ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
   },
 };
 
