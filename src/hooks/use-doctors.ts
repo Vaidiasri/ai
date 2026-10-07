@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createDoctor,
@@ -47,8 +48,10 @@ export function useUpdateDoctor() {
 
 // get available doctors for appointments
 export function useAvailableDoctors() {
+  // phone is included only when signed in, so the cache must not cross auth states
+  const { isSignedIn } = useAuth();
   const result = useQuery({
-    queryKey: ["getAvailableDoctors"],
+    queryKey: ["getAvailableDoctors", isSignedIn],
     queryFn: () => getAvailableDoctors(),
   });
 

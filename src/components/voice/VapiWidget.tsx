@@ -4,12 +4,13 @@ import { useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { vapi, isVapiConfigured } from "@/lib/vapi";
+import { bookAppointment } from "@/lib/actions/appointments";
+import { getAvailableDoctors } from "@/lib/actions/doctors";
+import { getVoiceCallToken } from "@/lib/actions/voice";
+import { parseAppointmentDate, toCanonicalTime } from "@/lib/utils/time";
+import { isVapiConfigured, vapi } from "@/lib/vapi";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
-import { getAvailableDoctors } from "@/lib/actions/doctors";
-import { bookAppointment } from "@/lib/actions/appointments";
-import { parseAppointmentDate, toCanonicalTime } from "@/lib/utils/time";
 
 function VapiWidget() {
   const [callActive, setCallActive] = useState(false);
@@ -133,7 +134,18 @@ function VapiWidget() {
                 speciality: typeof args.speciality === "string" ? args.speciality : undefined,
               });
               setDebugOutput(`Found ${doctors.length} doctors.`);
-              sendToolResult(toolCallId, JSON.stringify(doctors));
+              // the AI gets only these four fields: no phone, email, or id (spec 0002 AC-11)
+              sendToolResult(
+                toolCallId,
+                JSON.stringify(
+                  doctors.map(({ name, speciality, clinicName, distance }) => ({
+                    name,
+                    speciality,
+                    clinicName,
+                    distance,
+                  })),
+                ),
+              );
             } catch (err: unknown) {
               const errMsg = err instanceof Error ? err.message : "Unknown error";
               setDebugOutput(`Error: ${errMsg}`);
@@ -282,10 +294,14 @@ function VapiWidget() {
       setConnecting(true);
       resetCallState();
 
+      // no token (secret unset, or the action failed) still starts the call;
+      // only webhook booking is refused (spec 0002 AC-10)
+      const callToken = await getVoiceCallToken().catch(() => null);
+
       await vapi.start(assistantId, {
         variableValues: {
           name: (user.firstName || "").trim() || "there",
-          userId: user.id,
+          ...(callToken && { callToken }),
         },
       });
     } catch (error) {

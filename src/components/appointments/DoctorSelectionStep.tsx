@@ -65,9 +65,6 @@ function DoctorSelectionStep({
                       <StarIcon className="w-4 h-4 fill-amber-400 text-amber-400" />
                       <span className="text-sm font-medium">5</span>
                     </div>
-                    <span className="text-sm text-muted-foreground">
-                      ({dentist.appointmentCount} appointments)
-                    </span>
                   </div>
                 </div>
               </div>
@@ -78,10 +75,12 @@ function DoctorSelectionStep({
                 <MapPinIcon className="w-4 h-4" />
                 <span>DentWise</span>
               </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <PhoneIcon className="w-4 h-4" />
-                <span>{dentist.phone}</span>
-              </div>
+              {dentist.phone && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <PhoneIcon className="w-4 h-4" />
+                  <span>{dentist.phone}</span>
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">
                 {dentist.bio ||
                   "Experienced dental professional providing quality care."}
