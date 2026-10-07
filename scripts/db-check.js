@@ -59,7 +59,7 @@ async function main() {
   const prisma = new PrismaClient();
   try {
     const rows =
-      await prisma.$queryRaw`select indexdef from pg_indexes where indexname = ${SLOT_INDEX}`;
+      await prisma.$queryRaw`select indexdef from pg_indexes where schemaname = 'public' and indexname = ${SLOT_INDEX}`;
     const def = rows[0]?.indexdef ?? "";
     if (
       !def.includes("UNIQUE") ||
@@ -82,4 +82,11 @@ async function main() {
   return 0;
 }
 
-main().then((code) => process.exit(code));
+// Any unexpected throw means we could not compare: exit 2, never 1 or 0.
+main().then(
+  (code) => process.exit(code),
+  (e) => {
+    console.error("db:check failed:", e.message);
+    process.exit(2);
+  },
+);

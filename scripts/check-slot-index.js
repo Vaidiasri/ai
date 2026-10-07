@@ -24,40 +24,44 @@ async function expectDuplicateBlocked(tx, data) {
 async function main() {
   const tag = `slotcheck-${Date.now()}`;
   await prisma
-    .$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: { clerkId: tag, email: `${tag}@example.com` },
-      });
-      const doctor = await tx.doctor.create({
-        data: {
-          name: "Slot Check",
-          email: `${tag}@example.com`,
-          phone: "0",
-          speciality: "test",
-          imageUrl: "",
-          gender: "MALE",
-        },
-      });
-      const slot = {
-        userId: user.id,
-        doctorId: doctor.id,
-        date: new Date("2030-01-01T00:00:00Z"),
-        time: "10:00",
-      };
+    .$transaction(
+      async (tx) => {
+        const user = await tx.user.create({
+          data: { clerkId: tag, email: `${tag}@example.com` },
+        });
+        const doctor = await tx.doctor.create({
+          data: {
+            name: "Slot Check",
+            email: `${tag}@example.com`,
+            phone: "0",
+            speciality: "test",
+            imageUrl: "",
+            gender: "MALE",
+          },
+        });
+        const slot = {
+          userId: user.id,
+          doctorId: doctor.id,
+          date: new Date("2030-01-01T00:00:00Z"),
+          time: "10:00",
+        };
 
-      const first = await tx.appointment.create({ data: slot });
-      await expectDuplicateBlocked(tx, slot);
-      console.log("ok: second active booking rejected (P2002)");
+        const first = await tx.appointment.create({ data: slot });
+        await expectDuplicateBlocked(tx, slot);
+        console.log("ok: second active booking rejected (P2002)");
 
-      await tx.appointment.update({
-        where: { id: first.id },
-        data: { status: "CANCELLED" },
-      });
-      await tx.appointment.create({ data: slot });
-      console.log("ok: slot rebooked after cancel");
+        await tx.appointment.update({
+          where: { id: first.id },
+          data: { status: "CANCELLED" },
+        });
+        await tx.appointment.create({ data: slot });
+        console.log("ok: slot rebooked after cancel");
 
-      throw ROLLBACK;
-    })
+        throw ROLLBACK;
+      },
+      // pooler round trips can exceed the 5s default
+      { timeout: 30000, maxWait: 10000 },
+    )
     .catch((e) => {
       if (e !== ROLLBACK) throw e;
     });
