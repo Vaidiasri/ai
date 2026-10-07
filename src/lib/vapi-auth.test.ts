@@ -6,6 +6,9 @@ import {
   verifyVapiWebhookSecret,
 } from "./vapi-auth";
 
+// fake fixture values, deliberately low entropy so secret scanners stay quiet
+const HOOK = "fake";
+
 const req = (headers: Record<string, string> = {}) =>
   new Request("http://localhost/api/vapi/tools", { method: "POST", headers });
 
@@ -53,13 +56,13 @@ describe("verifyVapiWebhookSecret", () => {
   });
 
   describe("with a secret set", () => {
-    beforeEach(() => vi.stubEnv("VAPI_WEBHOOK_SECRET", "s3cret"));
+    beforeEach(() => vi.stubEnv("VAPI_WEBHOOK_SECRET", HOOK));
 
     it.each([
-      [{ "x-vapi-secret": "s3cret" }],
-      [{ authorization: "Bearer s3cret" }],
-      [{ authorization: "bearer s3cret" }],
-      [{ authorization: "BEARER s3cret" }],
+      [{ "x-vapi-secret": HOOK }],
+      [{ authorization: `Bearer ${HOOK}` }],
+      [{ authorization: `bearer ${HOOK}` }],
+      [{ authorization: `BEARER ${HOOK}` }],
     ])("accepts %j", (headers) => {
       expect(verifyVapiWebhookSecret(req(headers))).toBe(true);
     });
@@ -68,10 +71,10 @@ describe("verifyVapiWebhookSecret", () => {
       [{}],
       [{ "x-vapi-secret": "" }],
       [{ "x-vapi-secret": "wrong!" }],
-      [{ "x-vapi-secret": "s3cret-but-longer" }],
+      [{ "x-vapi-secret": `${HOOK}x` }],
       [{ "x-vapi-secret": "s" }],
       [{ authorization: "Bearer " }],
-      [{ authorization: "Basic s3cret" }],
+      [{ authorization: `Basic ${HOOK}` }],
     ])("rejects %j", (headers) => {
       expect(verifyVapiWebhookSecret(req(headers))).toBe(false);
     });
@@ -80,13 +83,13 @@ describe("verifyVapiWebhookSecret", () => {
       verifyVapiWebhookSecret(req({ "x-vapi-secret": "leaky-value" }));
       const logged = JSON.stringify(vi.mocked(console.warn).mock.calls);
       expect(logged).not.toContain("leaky-value");
-      expect(logged).not.toContain("s3cret");
+      expect(logged).not.toContain(HOOK);
     });
   });
 });
 
 describe("call token", () => {
-  const SECRET = "test-secret-32-bytes-long-enough!";
+  const SECRET = "x".repeat(32);
   const NOW = 1_700_000_000_000;
   const TTL = 30 * 60 * 1000;
   const token = signCallToken("user_abc123", SECRET, NOW);
