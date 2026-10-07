@@ -85,7 +85,8 @@ export function buildTools({ clinicId, db, clerkId, sessionId }: ToolScope) {
   return {
     list_doctors: tool({
       description:
-        "List this clinic's doctors, optionally filtered by specialty.",
+        "List this clinic's doctors. Omit specialty unless the patient " +
+        "names one; if given, use the English specialty name.",
       inputSchema: z.object({ specialty: z.string().max(100).optional() }),
       execute: run("list_doctors", async ({ specialty }) => {
         const doctors = await findAvailableDoctors(

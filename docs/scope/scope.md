@@ -118,12 +118,12 @@ spec [0003](../specs/0003-multi-clinic-data-model/index.md)
 Choose how the AI agent runs: the voice and text model providers inside free tiers, tools executed on the server, and a path off the current voice platform's one time credit.
 **Done when:** one decision covers voice and text, server side tool calls, Hindi support, and stays at zero cost for pilot volumes.
 - [x] Design it (spec): `/architect AI agent platform`
-- [ ] Build it: `/develop AI agent platform`
+- [x] Build it: `/develop AI agent platform`
   - [x] Session schema, start and end routes with daily limits (AC-1, AC-2, AC-9, AC-11)
   - [x] Clinic scoped booking tools and the chat route with policy and fallback (AC-3, AC-5, AC-6, AC-7, AC-8, AC-10, AC-14)
   - [x] Text mode panel on `/voice` behind the engine flag (AC-3, AC-10, AC-11, AC-15)
   - [x] Voice mode: transcribe, hands free turns, spoken replies, time cap, mic check (AC-4, AC-7, AC-12)
-  - [ ] Purge cron extension and the Hindi model smoke test (AC-13, AC-3, AC-8)
+  - [x] Purge cron extension and the Hindi model smoke test (AC-13, AC-3, AC-8)
 - [ ] Verify it: `/check verify AI agent platform`
 - [ ] Test it: `/test AI agent platform`
 spec [0004](../specs/0004-ai-agent-platform/index.md)
