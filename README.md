@@ -60,15 +60,12 @@ DentWise is an advanced dental clinic management platform designed to streamline
 
    ```bash
    npx prisma generate
-   npx prisma migrate deploy
+   npm run db:migrate   # apply prisma/migrations
+   npm run db:check     # exit 0 means the database matches schema.prisma
+   npm run db:seed      # optional: five sample doctors
    ```
 
-   If upgrading an existing database with appointment data:
-
-   ```bash
-   npm run db:migrate-times   # normalize times + dedupe slots
-   npx prisma migrate deploy  # apply indexes
-   ```
+   Use the Supabase Session pooler URL for `DATABASE_URL` (the direct host is IPv6 only). Change the schema with `npx prisma migrate dev`; if the generated SQL drops `appointments_doctorId_date_time_active_key`, delete that line before committing.
 
 ### Configuration
 
