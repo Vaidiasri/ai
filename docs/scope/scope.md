@@ -19,7 +19,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | F | Patient dashboard | Existing | existing |
 | 1 | Coding standards and tooling | Foundation | done |
 | 2 | Database connection and migration baseline | Foundation | in-progress |
-| 3 | Security fixes in existing code | Foundation | planned |
+| 3 | Security fixes in existing code | Foundation | in-progress |
 | 4 | Multi clinic data model | Foundation | planned |
 | 5 | AI agent platform | Foundation | planned |
 | 6 | English and Hindi support | Foundation | planned |
@@ -87,7 +87,17 @@ spec [0001](../specs/0001-database-connection-baseline.md) · code in `prisma/mi
 ### 3. Security fixes in existing code · GA
 Close the holes found in the audit before real patient data arrives: doctor contact details exposed without sign in, the voice webhook trusting a caller supplied user id, and a weak secret check.
 **Done when:** unauthenticated calls cannot read doctor emails or phones, the webhook rejects requests with a missing or wrong secret in every environment, and a booking cannot be made for another user.
-- [ ] Fix it: `/develop security fixes in existing code`
+- [x] Design it (spec): `/architect security fixes in existing code`
+- [x] Build it: `/develop security fixes in existing code`
+  - [x] Doctor list allowlist: no email, phone only when signed in, location query fixed (AC-1, AC-2, AC-12)
+  - [x] Webhook secret required everywhere, constant time compare, checked before ping (AC-3, AC-4, AC-5)
+  - [x] Signed call token: issue, pass from the widget, verify in the webhook; AI sees no phone or Clerk id (AC-6 to AC-11)
+  - [x] README and env updates (AC-4, AC-10)
+- [ ] Verify it: `/check verify security fixes in existing code`
+- [ ] Test it: `/test security fixes in existing code`
+- [ ] Review it (fresh model): `/check review security fixes in existing code`
+- [ ] Document it: `/document pr`
+spec [0002](../specs/0002-security-fixes-existing-code.md) · code `src/lib/vapi-auth.ts`, `src/lib/services/doctors.ts`, `src/app/api/vapi/tools/route.ts`
 
 ### 4. Multi clinic data model · needs a decision · GA
 Clinics, branches, specialties, staff roles, and doctor schedules, with every patient record tied to one clinic and never visible to another.
