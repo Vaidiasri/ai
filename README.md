@@ -82,7 +82,8 @@ CLERK_SECRET_KEY="..."
 # Vapi Voice Assistant
 NEXT_PUBLIC_VAPI_ASSISTANT_ID="..."
 NEXT_PUBLIC_VAPI_API_KEY="..."
-VAPI_WEBHOOK_SECRET="..."  # Same value as "Server URL Secret" in Vapi dashboard (can match VAPI_PRIVATE_KEY for dev)
+VAPI_WEBHOOK_SECRET="..."  # Required everywhere. Same value as "Server URL Secret" in Vapi dashboard; webhook returns 401 without it
+VAPI_CALL_TOKEN_SECRET="..."  # Random 32+ bytes, server only, signs voice call tokens (node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")
 VAPI_PRIVATE_KEY="..."     # Vapi private API key (server-side scripts only)
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 

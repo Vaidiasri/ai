@@ -1,9 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyVapiWebhookSecret } from "@/lib/auth";
-import { getAvailableDoctors } from "@/lib/actions/doctors";
-import { createAppointmentForClerkUser } from "@/lib/services/appointment-booking";
-import { parseAppointmentDate, toCanonicalTime } from "@/lib/utils/time";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createAppointmentForClerkUser } from "@/lib/services/appointment-booking";
+import { findAvailableDoctors } from "@/lib/services/doctors";
+import { parseAppointmentDate, toCanonicalTime } from "@/lib/utils/time";
+import { verifyCallToken, verifyVapiWebhookSecret } from "@/lib/vapi-auth";
+
+const SIGN_IN_AGAIN = JSON.stringify({
+  error:
+    "I can't book this because your sign in for this call is missing or expired. Please sign in on the website and start a new call.",
+});
 
 function corsHeaders() {
   return {
@@ -12,27 +17,29 @@ function corsHeaders() {
   };
 }
 
-function resolveClerkUserId(message: Record<string, unknown> | undefined): string | null {
-  const variableValues = message?.variableValues as Record<string, unknown> | undefined;
-  const metadata = message?.metadata as Record<string, unknown> | undefined;
-  const customer = message?.customer as { metadata?: Record<string, unknown> } | undefined;
-
-  const candidates = [
-    variableValues?.userId,
-    metadata?.userId,
-    customer?.metadata?.userId,
-  ];
-
-  for (const value of candidates) {
-    if (typeof value === "string" && value.startsWith("user_")) {
-      return value;
-    }
-  }
-
-  return null;
+// Identity comes only from the signed call token (spec 0002 AC-7); any userId
+// in the payload is ignored.
+function readCallToken(message: Record<string, unknown> | undefined): unknown {
+  const call = message?.call as
+    | { assistantOverrides?: { variableValues?: Record<string, unknown> } }
+    | undefined;
+  const variableValues = message?.variableValues as
+    | Record<string, unknown>
+    | undefined;
+  return (
+    call?.assistantOverrides?.variableValues?.callToken ??
+    variableValues?.callToken
+  );
 }
 
 export async function POST(req: NextRequest) {
+  if (!verifyVapiWebhookSecret(req)) {
+    return NextResponse.json(
+      { error: "Unauthorized", results: [] },
+      { status: 401 },
+    );
+  }
+
   try {
     const rawBody = await req.text();
 
@@ -49,12 +56,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Pong", results: [] });
     }
 
-    if (!verifyVapiWebhookSecret(req)) {
-      return NextResponse.json(
-        { error: "Unauthorized", results: [] },
-        { status: 401 },
+    // resolved once per request, only if a tool needs the caller
+    let caller: string | null | undefined;
+    const getCaller = () => {
+      if (caller !== undefined) return caller;
+      const verified = verifyCallToken(
+        readCallToken(message),
+        process.env.VAPI_CALL_TOKEN_SECRET,
       );
-    }
+      if (verified.ok) {
+        caller = verified.clerkId;
+      } else {
+        caller = null;
+        if (verified.reason === "unconfigured") {
+          console.error("[VAPI] VAPI_CALL_TOKEN_SECRET not set; call token refused");
+        } else {
+          console.warn(`[VAPI] call token refused: ${verified.reason}`);
+        }
+      }
+      return caller;
+    };
 
     const toolCalls = (message?.toolCalls ||
       message?.toolCallList ||
@@ -92,17 +113,20 @@ export async function POST(req: NextRequest) {
 
       try {
         if (name === "get_doctors") {
-          const doctors = await getAvailableDoctors({
-            latitude: args.latitude != null ? Number(args.latitude) : undefined,
-            longitude: args.longitude != null ? Number(args.longitude) : undefined,
-            speciality: typeof args.speciality === "string" ? args.speciality : undefined,
-          });
+          const doctors = await findAvailableDoctors(
+            {
+              latitude: args.latitude != null ? Number(args.latitude) : undefined,
+              longitude: args.longitude != null ? Number(args.longitude) : undefined,
+              speciality: typeof args.speciality === "string" ? args.speciality : undefined,
+            },
+            { includePhone: false },
+          );
 
           if (doctors.length > 0) {
             const docs = doctors
               .map(
                 (d) =>
-                  `${d.name} (${d.speciality}) at ${d.clinicName}${d.distance ? ` - Distance: ${d.distance}` : ""}`,
+                  `${d.name} (${d.speciality})${d.clinicName ? ` at ${d.clinicName}` : ""}${d.distance != null ? ` - Distance: ${d.distance}` : ""}`,
               )
               .join(" | ");
             result = `Found these local clinics: ${docs}`;
@@ -110,32 +134,24 @@ export async function POST(req: NextRequest) {
             result = "No matching doctors found in our database currently.";
           }
         } else if (name === "get_current_user") {
-          const userId = resolveClerkUserId(message);
+          const userId = getCaller();
 
           if (userId) {
             const user = await prisma.user.findUnique({ where: { clerkId: userId } });
             result = JSON.stringify({
-              userId,
               name: user
                 ? `${user.firstName} ${user.lastName}`.trim()
                 : "Unknown (not in DB)",
               isLoggedIn: true,
             });
           } else {
-            result = JSON.stringify({
-              userId: null,
-              isLoggedIn: false,
-              error: "No userId in call metadata. User must be logged in on the voice page.",
-            });
+            result = JSON.stringify({ isLoggedIn: false });
           }
         } else if (name === "book_appointment") {
-          const userId = resolveClerkUserId(message);
+          const userId = getCaller();
 
           if (!userId) {
-            result = JSON.stringify({
-              error: "Login required",
-              message: "Please refresh the page and ensure you are logged in.",
-            });
+            result = SIGN_IN_AGAIN;
           } else {
             let doctorId = String(
               args.doctorId || args.doctor_id || args.doctor || "",
@@ -145,7 +161,7 @@ export async function POST(req: NextRequest) {
               doctorId &&
               (doctorId.includes(" ") || !doctorId.includes("-"))
             ) {
-              const doctors = await getAvailableDoctors();
+              const doctors = await findAvailableDoctors({}, { includePhone: false });
               const found = doctors.find(
                 (d) =>
                   d.name.toLowerCase().includes(doctorId.toLowerCase()) ||
