@@ -17,8 +17,8 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | D | Voice booking assistant | Existing | in-progress |
 | E | Booking confirmation email | Existing | existing |
 | F | Patient dashboard | Existing | existing |
-| 1 | Coding standards and tooling | Foundation | in-progress |
-| 2 | Database connection and migration baseline | Foundation | planned |
+| 1 | Coding standards and tooling | Foundation | done |
+| 2 | Database connection and migration baseline | Foundation | in-progress |
 | 3 | Security fixes in existing code | Foundation | planned |
 | 4 | Multi clinic data model | Foundation | planned |
 | 5 | AI agent platform | Foundation | planned |
@@ -62,19 +62,27 @@ Signed in patient sees upcoming appointments. code in `src/app/dashboard/`
 
 ## Foundations
 
-### 1. Coding standards and tooling · in-progress
+### 1. Coding standards and tooling · done
 Conventions are captured; the build still ignores type errors and there is no test runner, so nothing later can be proven.
 **Done when:** a type error fails the build or a check script, and one sample test runs with a single npm command.
 - [x] Capture conventions and tooling choices: `/audit`
 - [x] Install the tooling: `/develop tooling`
 - [x] Verify it: `/check verify tooling`
-- [ ] Test it: `/test tooling`
+- [x] Test it: `/test tooling` (skipped, the sample suite is the test; marked done by the engineer)
 code in `next.config.ts`, `vitest.config.mts`, `package.json`
 
-### 2. Database connection and migration baseline · needs a decision
+### 2. Database connection and migration baseline · in-progress
 Reach the database from this network and make the migration history match the real schema, so every later data change ships as a clean migration.
 **Done when:** the app connects locally, sign up creates a user row, and a fresh database built from migrations equals the schema with no drift.
-- [ ] Design it (spec): `/architect database connection and migration baseline`
+- [x] Design it (spec): `/architect database connection and migration baseline`
+- [ ] Build it: `/develop database connection and migration baseline`
+  - [x] Fresh init migration, drift side channels removed, docs updated (AC-2, AC-7)
+  - [x] `db:check` and `db:seed` scripts (AC-3, AC-6)
+  - [x] Migrate the Supabase DB and prove it: status, drift check, slot index, seed (AC-1, AC-2, AC-3, AC-5, AC-6)
+  - [ ] Sign in creates one user row; Vercel `DATABASE_URL` switched (AC-4, AC-1)
+- [ ] Verify it: `/check verify database connection and migration baseline`
+- [ ] Test it: `/test database connection and migration baseline`
+spec [0001](../specs/0001-database-connection-baseline.md) · code in `prisma/migrations/`, `scripts/db-check.js`, `scripts/check-slot-index.js`
 
 ### 3. Security fixes in existing code · GA
 Close the holes found in the audit before real patient data arrives: doctor contact details exposed without sign in, the voice webhook trusting a caller supplied user id, and a weak secret check.
@@ -195,6 +203,8 @@ Out of scope for the current build pass, kept so the plan stays honest.
 - **Subscription billing**: paid plans after the free pilots · needs a decision · GA
 - **Consultation fee payment**: patient pays the clinic online · needs a decision · GA
 - **Regional languages**: beyond English and Hindi · needs a decision
+- **Prisma 7.4 upgrade**: declare the partial slot index in the schema, drop the `db:check` exception · from spec 0001
+- **Drift check in CI**: run `db:check` on every PR against a disposable database · from spec 0001
 - **National health ID link**: connect patient records to India's digital health ID · needs a decision · GA
 - **Record view audit log**: log who viewed which patient record · needs a decision · GA
 
