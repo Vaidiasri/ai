@@ -1,9 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import Navbar from "@/components/Navbar";
+import AgentPanel from "@/components/voice/AgentPanel";
 import FeatureCards from "@/components/voice/FeatureCards";
 import ProPlanRequired from "@/components/voice/ProPlanRequired";
 import VapiWidget from "@/components/voice/VapiWidget";
 import WelcomeSection from "@/components/voice/WelcomeSection";
+import { DEMO_CLINIC_SLUG } from "@/lib/tenancy";
 
 async function VoicePage() {
   const { has } = await auth();
@@ -22,7 +24,12 @@ async function VoicePage() {
         <FeatureCards />
       </div>
 
-      <VapiWidget />
+      {/* Spec 0004 AC-15: "native" runs the new agent; anything else keeps Vapi. */}
+      {process.env.NEXT_PUBLIC_VOICE_ENGINE === "native" ? (
+        <AgentPanel clinicSlug={DEMO_CLINIC_SLUG} />
+      ) : (
+        <VapiWidget />
+      )}
     </div>
   );
 }
