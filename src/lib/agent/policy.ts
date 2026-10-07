@@ -16,8 +16,8 @@ Rules:
 - Keep replies short: one to three sentences of plain text, no markdown. They may be read aloud.`;
 
 const LANGUAGE: Record<AgentLanguage, string> = {
-  EN: "Reply only in English.",
-  HI: "Reply only in simple everyday Hindi, written in Devanagari script. Common English words like doctor and appointment are fine.",
+  EN: "Reply only in English. Never use any other language or script.",
+  HI: "Reply only in simple everyday Hindi, written in Devanagari script. Common English words like doctor and appointment are fine. Never use any other language or script, such as Chinese or Urdu.",
 };
 
 const WRAP_UP =
