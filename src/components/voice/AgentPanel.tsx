@@ -1,15 +1,17 @@
 "use client";
 
-// Spec 0004: the native AI front desk, text mode. The server owns every limit;
-// this panel only starts, chats, and ends the session.
+// Spec 0004: the native AI front desk, text or voice. The server owns every
+// limit; this panel only starts, chats, and ends the session.
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
+import { type Limits, textOf, useVoiceLoop } from "./useVoiceLoop";
 
 type Lang = "EN" | "HI";
+type Mode = "VOICE" | "TEXT";
 
 const T = {
   EN: {
@@ -28,6 +30,23 @@ const T = {
     unavailable: "This clinic is not taking chats right now.",
     failed: "Could not start the chat. Please try again.",
     error: "Something went wrong. You can use the booking form.",
+    voice: "Voice",
+    text: "Text",
+    voiceNotice:
+      "An AI service (Groq) processes what you say to answer you. Nothing is recorded or stored.",
+    noMic: "We could not use your microphone.",
+    continueText: "Continue in text",
+    loading: "Getting the mic ready...",
+    listening: "Listening. Speak when you are ready.",
+    thinking: "Thinking...",
+    speaking: "Speaking...",
+    off: "The mic is off. You can keep typing.",
+    warn: "About one minute left in this voice chat.",
+    noVoice:
+      "Your browser has no voice for this language. Read the replies below.",
+    voiceUnavailable: "Voice is not available right now. You can keep typing.",
+    uploads: "This chat has reached its voice limit. You can keep typing.",
+    heard: "Sorry, I could not hear that. Please try again.",
   },
   HI: {
     title: "AI फ्रंट डेस्क",
@@ -45,8 +64,26 @@ const T = {
     unavailable: "यह क्लिनिक अभी चैट नहीं ले रहा है।",
     failed: "चैट शुरू नहीं हो सकी। फिर से कोशिश करें।",
     error: "कुछ गड़बड़ हो गई। आप बुकिंग फ़ॉर्म इस्तेमाल कर सकते हैं।",
+    voice: "आवाज़",
+    text: "लिखकर",
+    voiceNotice:
+      "आपको जवाब देने के लिए आपकी आवाज़ एक AI सेवा (Groq) प्रोसेस करती है। कुछ भी रिकॉर्ड या सेव नहीं किया जाता।",
+    noMic: "आपका माइक्रोफ़ोन इस्तेमाल नहीं हो सका।",
+    continueText: "लिखकर जारी रखें",
+    loading: "माइक तैयार हो रहा है...",
+    listening: "सुन रहे हैं। जब तैयार हों, बोलें।",
+    thinking: "सोच रहे हैं...",
+    speaking: "बोल रहे हैं...",
+    off: "माइक बंद है। आप लिखकर जारी रख सकते हैं।",
+    warn: "इस वॉइस चैट में लगभग एक मिनट बचा है।",
+    noVoice: "आपके ब्राउज़र में इस भाषा की आवाज़ नहीं है। जवाब नीचे पढ़ें।",
+    voiceUnavailable: "आवाज़ अभी उपलब्ध नहीं है। आप लिखकर जारी रख सकते हैं।",
+    uploads: "इस चैट की आवाज़ सीमा पूरी हो गई। आप लिखकर जारी रख सकते हैं।",
+    heard: "माफ़ कीजिए, सुनाई नहीं दिया। फिर से बोलें।",
   },
 } as const;
+
+const NO_LIMITS: Limits = { voiceSeconds: 0, warnAtSeconds: 0 };
 
 let pendingLeave: number | undefined;
 
@@ -85,11 +122,13 @@ function Chat({
   sessionId,
   lang,
   setLang,
+  voice,
   onEnded,
 }: {
   sessionId: string;
   lang: Lang;
   setLang: (l: Lang) => void;
+  voice: Limits | null;
   onEnded: () => void;
 }) {
   const t = T[lang];
@@ -141,6 +180,7 @@ function Chat({
 
   const busy = status === "submitted" || status === "streaming";
 
+  // Past the voice cap the end route records TIME_LIMIT, not COMPLETED.
   async function end() {
     await fetch("/api/agent/session/end", {
       method: "POST",
@@ -148,6 +188,18 @@ function Chat({
     }).catch(() => {});
     onEnded();
   }
+
+  const v = useVoiceLoop({
+    on: voice !== null,
+    sessionId,
+    lang,
+    limits: voice ?? NO_LIMITS,
+    messages,
+    status,
+    send: (text) => sendMessage({ text }),
+    onEnded,
+    onTimeUp: end,
+  });
 
   return (
     <div className="flex flex-col gap-3">
@@ -157,6 +209,14 @@ function Chat({
           {t.end}
         </Button>
       </div>
+
+      {v.phase && (
+        <div className="space-y-1 text-sm" aria-live="polite">
+          <p className="font-medium">{t[v.phase]}</p>
+          {v.warn && <p className="text-amber-600">{t.warn}</p>}
+          {v.note && <p className="text-muted-foreground">{t[v.note]}</p>}
+        </div>
+      )}
 
       <div
         ref={box}
@@ -172,7 +232,7 @@ function Chat({
                 : "bg-muted"
             }`}
           >
-            {m.parts.map((p) => (p.type === "text" ? p.text : "")).join("")}
+            {textOf(m)}
           </div>
         ))}
         {status === "submitted" && (
@@ -218,6 +278,9 @@ export default function AgentPanel({ clinicSlug }: { clinicSlug: string }) {
   const [ended, setEnded] = useState(false);
   const [starting, setStarting] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>("VOICE");
+  const [noMic, setNoMic] = useState(false);
+  const [voice, setVoice] = useState<Limits | null>(null);
   const t = T[lang];
 
   useEffect(() => {
@@ -227,15 +290,26 @@ export default function AgentPanel({ clinicSlug }: { clinicSlug: string }) {
   async function start() {
     setStarting(true);
     setProblem(null);
+    setNoMic(false);
     try {
+      // AC-12: check the mic before creating a session, so a denied mic
+      // costs no chat from today's allowance.
+      if (mode === "VOICE") {
+        const stream = await navigator.mediaDevices
+          ?.getUserMedia({ audio: true })
+          .catch(() => null);
+        if (!stream) return setNoMic(true);
+        for (const track of stream.getTracks()) track.stop();
+      }
       const res = await fetch("/api/agent/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clinicSlug, channel: "TEXT", language: lang }),
+        body: JSON.stringify({ clinicSlug, channel: mode, language: lang }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setSessionId(data.sessionId);
+        setVoice(mode === "VOICE" ? data.limits : null);
         setEnded(false);
       } else if (res.status === 429)
         setProblem(`${t.limit} ${new Date(data.resetsAt).toLocaleString()}`);
@@ -258,17 +332,50 @@ export default function AgentPanel({ clinicSlug }: { clinicSlug: string }) {
             sessionId={sessionId}
             lang={lang}
             setLang={setLang}
+            voice={voice}
             onEnded={() => setEnded(true)}
           />
         ) : (
           <div className="flex flex-col gap-3">
             {ended && <p className="text-sm">{t.ended}</p>}
-            <LangPicker lang={lang} onChange={setLang} />
-            <p className="text-sm text-muted-foreground">{t.notice}</p>
+            <div className="flex flex-wrap gap-3">
+              <LangPicker lang={lang} onChange={setLang} />
+              <div className="flex gap-1" role="group" aria-label="Mode">
+                {(["VOICE", "TEXT"] as const).map((m) => (
+                  <Button
+                    key={m}
+                    size="sm"
+                    variant={mode === m ? "default" : "outline"}
+                    aria-pressed={mode === m}
+                    onClick={() => setMode(m)}
+                  >
+                    {m === "VOICE" ? t.voice : t.text}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {mode === "VOICE" ? t.voiceNotice : t.notice}
+            </p>
             {problem && (
               <p className="text-sm text-destructive" role="alert">
                 {problem}
               </p>
+            )}
+            {noMic && (
+              <div className="flex flex-wrap items-center gap-2" role="alert">
+                <p className="text-sm text-destructive">{t.noMic}</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setMode("TEXT");
+                    setNoMic(false);
+                  }}
+                >
+                  {t.continueText}
+                </Button>
+              </div>
             )}
             <div className="flex flex-wrap gap-2">
               <Button onClick={start} disabled={starting}>

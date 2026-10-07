@@ -112,6 +112,22 @@ export async function claimTurn(
   return count > 0;
 }
 
+// Guarded upload claim (AC-7): only an open VOICE session under 60 uploads.
+export async function claimUpload(
+  session: Pick<AgentSession, "id" | "clinicId">,
+) {
+  const { count } = await forClinic(session.clinicId).agentSession.updateMany({
+    where: {
+      id: session.id,
+      endedAt: null,
+      channel: "VOICE",
+      transcribeCount: { lt: AGENT_LIMITS.maxUploads },
+    },
+    data: { transcribeCount: { increment: 1 } },
+  });
+  return count > 0;
+}
+
 export function setProvider(
   session: Pick<AgentSession, "id" | "clinicId">,
   provider: string,
