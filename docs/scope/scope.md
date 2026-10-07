@@ -21,7 +21,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 2 | Database connection and migration baseline | Foundation | in-progress |
 | 3 | Security fixes in existing code | Foundation | in-progress |
 | 4 | Multi clinic data model | Foundation | in-progress |
-| 5 | AI agent platform | Foundation | planned |
+| 5 | AI agent platform | Foundation | in-progress |
 | 6 | English and Hindi support | Foundation | planned |
 | 7 | Clinic sign up and profile | Journey 1: clinic setup | planned |
 | 8 | Staff and roles | Journey 1: clinic setup | planned |
@@ -119,7 +119,7 @@ Choose how the AI agent runs: the voice and text model providers inside free tie
 **Done when:** one decision covers voice and text, server side tool calls, Hindi support, and stays at zero cost for pilot volumes.
 - [x] Design it (spec): `/architect AI agent platform`
 - [ ] Build it: `/develop AI agent platform`
-  - [ ] Session schema, start and end routes with daily limits (AC-1, AC-2, AC-9, AC-11)
+  - [x] Session schema, start and end routes with daily limits (AC-1, AC-2, AC-9, AC-11)
   - [ ] Clinic scoped booking tools and the chat route with policy and fallback (AC-3, AC-5, AC-6, AC-7, AC-8, AC-10, AC-14)
   - [ ] Text mode panel on `/voice` behind the engine flag (AC-3, AC-10, AC-11, AC-15)
   - [ ] Voice mode: transcribe, hands free turns, spoken replies, time cap, mic check (AC-4, AC-7, AC-12)

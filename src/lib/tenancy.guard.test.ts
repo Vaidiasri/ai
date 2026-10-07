@@ -14,6 +14,7 @@ const ALLOWLIST = new Set([
   "src/lib/tenancy.ts",
   "src/lib/services/patient-self.ts",
   "src/lib/services/doctors.ts",
+  "src/lib/services/agent-session.ts",
   "src/lib/actions/platform.ts",
   "src/lib/actions/users.ts",
   "src/lib/actions/user.ts",
