@@ -1,8 +1,10 @@
 "use server";
 
-import { Prisma, type Gender } from "@prisma/client";
+import { auth } from "@clerk/nextjs/server";
+import type { Gender } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
+import { type DoctorSearch, findAvailableDoctors } from "@/lib/services/doctors";
 import { prisma } from "../prisma";
 import { generateAvatar } from "../utils";
 
@@ -141,59 +143,10 @@ async function geocodeLocation(location: string): Promise<{ lat: number; lng: nu
   }
 }
 
-export async function getAvailableDoctors(params: { 
-  latitude?: number; 
-  longitude?: number; 
-  speciality?: string; 
-  radius?: number 
-} = {}) {
-  let { latitude, longitude, speciality, radius = 50 } = params;
-  
+export async function getAvailableDoctors(params: DoctorSearch = {}) {
   try {
-    let localDoctors: any[] = [];
-
-    if (latitude != null && longitude != null) {
-      const radiusInDegrees = radius / 111;
-      // Using $queryRaw for geospatial calculation with Bounding Box optimization
-      const doctorsDb = await prisma.$queryRaw<any[]>`
-        SELECT d.*, c.name as "clinicName", c."isPartner",
-          (6371 * acos(cos(radians(${latitude})) * cos(radians(c.latitude)) * cos(radians(c.longitude) - radians(${longitude})) + sin(radians(${latitude})) * sin(radians(c.latitude)))) AS distance
-        FROM doctors d
-        JOIN clinics c ON d."clinicId" = c.id
-        WHERE c.latitude BETWEEN ${latitude - radiusInDegrees} AND ${latitude + radiusInDegrees}
-          AND c.longitude BETWEEN ${longitude - radiusInDegrees} AND ${longitude + radiusInDegrees}
-          ${speciality ? Prisma.sql`AND d.speciality ILIKE ${'%' + speciality + '%'}` : Prisma.sql``}
-          AND d."isActive" = true
-        HAVING (6371 * acos(cos(radians(${latitude})) * cos(radians(c.latitude)) * cos(radians(c.longitude) - radians(${longitude})) + sin(radians(${latitude})) * sin(radians(c.latitude)))) < ${radius}
-        ORDER BY distance ASC;
-      `;
-
-      localDoctors = doctorsDb.map(d => ({
-        ...d,
-        clinicName: d.clinicName,
-        isPartner: d.isPartner,
-        distance: d.distance
-      }));
-    } else {
-      // Fetch all if no location info is provided
-      const allDbDoctors = await prisma.doctor.findMany({
-        where: { 
-          isActive: true,
-          ...(speciality && { speciality: { contains: speciality, mode: 'insensitive' } })
-        },
-        include: { clinic: true },
-        orderBy: { name: "asc" }
-      });
-
-      localDoctors = allDbDoctors.map(d => ({
-        ...d,
-        clinicName: d.clinic?.name,
-        isPartner: d.clinic?.isPartner,
-        distance: null
-      }));
-    }
-
-    return localDoctors;
+    const { userId } = await auth();
+    return await findAvailableDoctors(params, { includePhone: !!userId });
   } catch (error) {
     console.error("Error fetching available doctors:", error);
     throw new Error("Failed to fetch available doctors");
