@@ -15,6 +15,7 @@ export const CLINIC_OWNED_MODELS = new Set<string>([
   "Doctor",
   "ClinicPatient",
   "Appointment",
+  "AgentSession",
 ]);
 
 const WHERE_OPS = new Set([

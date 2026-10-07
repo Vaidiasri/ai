@@ -12,17 +12,18 @@ datasource db {
 // (x, clinicId) keep references inside one clinic.
 
 model User {
-  id          String          @id @default(cuid())
-  clerkId     String          @unique
-  email       String          @unique
-  firstName   String?
-  lastName    String?
-  phone       String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @default(now()) @updatedAt
-  memberships ClinicMember[]
-  patients    ClinicPatient[]
-  doctors     Doctor[]
+  id            String          @id @default(cuid())
+  clerkId       String          @unique
+  email         String          @unique
+  firstName     String?
+  lastName      String?
+  phone         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now()) @updatedAt
+  memberships   ClinicMember[]
+  patients      ClinicPatient[]
+  doctors       Doctor[]
+  agentSessions AgentSession[]
 
   @@map("users")
 }
@@ -39,19 +40,20 @@ model Specialty {
 }
 
 model Clinic {
-  id           String            @id @default(cuid())
-  slug         String            @unique
-  name         String
-  status       ClinicStatus      @default(ACTIVE)
-  suspendedAt  DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  branches     Branch[]
-  members      ClinicMember[]
-  specialties  ClinicSpecialty[]
-  doctors      Doctor[]
-  patients     ClinicPatient[]
-  appointments Appointment[]
+  id            String            @id @default(cuid())
+  slug          String            @unique
+  name          String
+  status        ClinicStatus      @default(ACTIVE)
+  suspendedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  branches      Branch[]
+  members       ClinicMember[]
+  specialties   ClinicSpecialty[]
+  doctors       Doctor[]
+  patients      ClinicPatient[]
+  appointments  Appointment[]
+  agentSessions AgentSession[]
 
   @@map("clinics")
 }
@@ -166,7 +168,9 @@ model Appointment {
   branch          Branch            @relation(fields: [branchId, clinicId], references: [id, clinicId], onDelete: NoAction)
   doctor          Doctor            @relation(fields: [doctorId, clinicId], references: [id, clinicId], onDelete: NoAction)
   clinicPatient   ClinicPatient     @relation(fields: [clinicPatientId, clinicId], references: [id, clinicId], onDelete: NoAction)
+  agentSessions   AgentSession[]
 
+  @@unique([id, clinicId])
   @@index([doctorId, date, time])
   @@index([date])
   @@index([doctorId])
@@ -174,6 +178,31 @@ model Appointment {
   @@index([clinicId])
   @@index([clinicPatientId])
   @@map("appointments")
+}
+
+// Spec 0004: one AI agent conversation. Metadata only, never message content.
+// Purged 90 days after startedAt by the purge-clinics cron.
+model AgentSession {
+  id              String          @id @default(cuid())
+  clinicId        String
+  userId          String
+  channel         AgentChannel
+  language        AgentLanguage
+  provider        String?
+  startedAt       DateTime        @default(now())
+  endedAt         DateTime?
+  endReason       AgentEndReason?
+  toolCallCount   Int             @default(0)
+  turnCount       Int             @default(0)
+  transcribeCount Int             @default(0)
+  appointmentId   String?
+  clinic          Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointment     Appointment?    @relation(fields: [appointmentId, clinicId], references: [id, clinicId], onDelete: NoAction)
+
+  @@index([clinicId, userId, startedAt])
+  @@index([startedAt])
+  @@map("agent_sessions")
 }
 
 enum Gender {
@@ -197,4 +226,22 @@ enum ClinicRole {
   OWNER
   DOCTOR
   RECEPTIONIST
+}
+
+enum AgentChannel {
+  VOICE
+  TEXT
+}
+
+enum AgentLanguage {
+  EN
+  HI
+}
+
+enum AgentEndReason {
+  COMPLETED
+  TIME_LIMIT
+  MESSAGE_LIMIT
+  PROVIDER_ERROR
+  ABANDONED
 }
