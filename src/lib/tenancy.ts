@@ -102,11 +102,14 @@ export type ClinicDb = ReturnType<typeof forClinic>;
 
 // Public resolver: null for unknown or suspended, so suspension applies to
 // every patient path that resolves its clinic here.
-export async function clinicBySlug(slug: string) {
-  const clinic = await prisma.clinic.findUnique({ where: { slug } });
+async function activeClinic(where: { slug: string } | { id: string }) {
+  const clinic = await prisma.clinic.findUnique({ where });
   if (!clinic || clinic.status !== "ACTIVE") return null;
   return { clinic, db: forClinic(clinic.id) };
 }
+
+export const clinicBySlug = (slug: string) => activeClinic({ slug });
+export const clinicById = (id: string) => activeClinic({ id });
 
 export async function requireClinicMember(roles?: ClinicRole[]) {
   const { userId: clerkId } = await auth();
