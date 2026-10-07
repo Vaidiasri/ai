@@ -11,7 +11,7 @@ const row = {
   clinicId: "c1",
   phone: "+91 90000 00000",
   clinicName: "Smile Clinic",
-  isPartner: true,
+  branchName: "Main",
   distance: Math.PI, // 3.14159...
   // a column the mapper must never pass through, even if a query returns it
   email: "doc@example.com",
@@ -27,20 +27,8 @@ describe("toPublicDoctor", () => {
     expect(toPublicDoctor(row, false)).not.toHaveProperty("phone");
   });
 
-  it("gives null and false for a row with no clinic", () => {
-    const d = toPublicDoctor(
-      {
-        ...row,
-        clinicId: null,
-        clinicName: null,
-        isPartner: null,
-        distance: null,
-      },
-      false,
-    );
-    expect(d.clinicName).toBeNull();
-    expect(d.isPartner).toBe(false);
-    expect(d.distance).toBeNull();
+  it("gives null distance when there is no location", () => {
+    expect(toPublicDoctor({ ...row, distance: null }, false).distance).toBeNull();
   });
 
   it("rounds distance to one decimal", () => {
@@ -57,13 +45,13 @@ describe("toPublicDoctor", () => {
     expect(Object.keys(toPublicDoctor(row, true)).sort()).toEqual(
       [
         "bio",
+        "branchName",
         "clinicId",
         "clinicName",
         "distance",
         "gender",
         "id",
         "imageUrl",
-        "isPartner",
         "name",
         "phone",
         "speciality",

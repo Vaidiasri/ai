@@ -1,6 +1,10 @@
-
+// Seeds the Demo clinic's doctors (spec 0003). Run after the multi clinic migration.
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+
+// same rule as the migration backfill
+const slugify = (s) =>
+  s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'general-physician';
 
 async function main() {
   const doctors = [
@@ -56,12 +60,30 @@ async function main() {
     }
   ];
 
+  const clinic = await prisma.clinic.findUnique({
+    where: { slug: 'demo' },
+    include: { branches: { take: 1, orderBy: { createdAt: 'asc' } } },
+  });
+  if (!clinic?.branches[0]) throw new Error('Demo clinic or its branch is missing; run npm run db:migrate first');
+  const branchId = clinic.branches[0].id;
+
   console.log("Seeding doctors...");
-  for (const doctor of doctors) {
+  for (const { speciality, ...doctor } of doctors) {
+    const specialty = await prisma.specialty.upsert({
+      where: { slug: slugify(speciality) },
+      update: {},
+      create: { slug: slugify(speciality), name: speciality },
+    });
+    await prisma.clinicSpecialty.upsert({
+      where: { clinicId_specialtyId: { clinicId: clinic.id, specialtyId: specialty.id } },
+      update: {},
+      create: { clinicId: clinic.id, specialtyId: specialty.id },
+    });
+    const data = { ...doctor, clinicId: clinic.id, branchId, specialtyId: specialty.id };
     await prisma.doctor.upsert({
-      where: { email: doctor.email },
-      update: doctor,
-      create: doctor,
+      where: { clinicId_email: { clinicId: clinic.id, email: doctor.email } },
+      update: data,
+      create: data,
     });
   }
   console.log("Doctors seeded successfully!");

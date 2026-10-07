@@ -1,6 +1,6 @@
 import { format } from "date-fns";
-import { prisma } from "@/lib/prisma";
 import { sendAppointmentConfirmationEmail } from "@/lib/services/email";
+import { clinicBySlug, DEMO_CLINIC_SLUG, getOrCreateClinicPatient } from "@/lib/tenancy";
 import {
   formatStoredAppointmentDate,
   formatTimeForDisplay,
@@ -15,9 +15,16 @@ export interface BookAppointmentInput {
   reason?: string;
 }
 
-function transformAppointment(appointment: {
+// Shared include and output shape for every appointment read (spec 0003:
+// patient name from ClinicPatient, email only when linked to a login).
+export const APPOINTMENT_INCLUDE = {
+  clinicPatient: { select: { name: true, user: { select: { email: true } } } },
+  doctor: { select: { name: true, imageUrl: true } },
+} as const;
+
+export function transformAppointment(appointment: {
   id: string;
-  userId: string;
+  clinicPatientId: string;
   doctorId: string;
   date: Date;
   time: string;
@@ -27,19 +34,19 @@ function transformAppointment(appointment: {
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
-  user: { firstName: string | null; lastName: string | null; email: string };
+  clinicPatient: { name: string; user: { email: string } | null };
   doctor: { name: string; imageUrl: string };
+  clinic?: { name: string };
 }) {
   return {
     id: String(appointment.id),
-    userId: String(appointment.userId),
+    clinicPatientId: String(appointment.clinicPatientId),
     doctorId: String(appointment.doctorId),
-    patientName: String(
-      `${appointment.user.firstName || ""} ${appointment.user.lastName || ""}`.trim(),
-    ),
-    patientEmail: String(appointment.user.email || ""),
+    patientName: appointment.clinicPatient.name,
+    patientEmail: appointment.clinicPatient.user?.email ?? "",
     doctorName: String(appointment.doctor.name || ""),
     doctorImageUrl: String(appointment.doctor.imageUrl || ""),
+    clinicName: appointment.clinic?.name ?? "",
     date: formatStoredAppointmentDate(appointment.date),
     time: String(appointment.time),
     duration: Number(appointment.duration),
@@ -49,6 +56,15 @@ function transformAppointment(appointment: {
     createdAt: appointment.createdAt.toISOString(),
     updatedAt: appointment.updatedAt.toISOString(),
   };
+}
+
+export const CLINIC_UNAVAILABLE = "This clinic is not available right now.";
+
+// Interim pin until Feature 10 adds /c/<slug>: every patient path books Demo.
+export async function demoClinic() {
+  const scope = await clinicBySlug(DEMO_CLINIC_SLUG);
+  if (!scope) throw new Error(CLINIC_UNAVAILABLE);
+  return scope;
 }
 
 const BLOCKING_STATUSES = ["CONFIRMED", "COMPLETED", "PENDING"] as const;
@@ -72,27 +88,35 @@ export async function createAppointmentForClerkUser(
   const normalizedDate = parseAppointmentDate(input.date);
   const normalizedTime = toCanonicalTime(input.time);
 
-  const user = await prisma.user.findUnique({ where: { clerkId } });
+  const { clinic, db } = await demoClinic();
+  const user = await db.user.findUnique({ where: { clerkId } });
   if (!user) {
     throw new Error("User record not found in database");
   }
+  const doctor = await db.doctor.findUnique({
+    where: { id: input.doctorId },
+    select: { branchId: true },
+  });
+  if (!doctor) {
+    throw new Error("Doctor not found");
+  }
+  const patient = await getOrCreateClinicPatient(db, clinic.id, user);
 
   const appointmentDate = new Date(`${normalizedDate}T12:00:00.000Z`);
 
   try {
-    const appointment = await prisma.appointment.create({
+    const appointment = await db.appointment.create({
       data: {
-        userId: user.id,
+        clinicId: clinic.id,
+        branchId: doctor.branchId,
+        clinicPatientId: patient.id,
         doctorId: input.doctorId,
         date: appointmentDate,
         time: normalizedTime,
         reason: input.reason || "General consultation",
         status: "CONFIRMED",
       },
-      include: {
-        user: { select: { firstName: true, lastName: true, email: true } },
-        doctor: { select: { id: true, name: true, imageUrl: true } },
-      },
+      include: APPOINTMENT_INCLUDE,
     });
 
     const result = transformAppointment(appointment);
@@ -128,7 +152,9 @@ export async function getBookedTimeSlotsForDoctor(doctorId: string, date: string
   const normalizedDate = parseAppointmentDate(date);
   const appointmentDate = new Date(`${normalizedDate}T12:00:00.000Z`);
 
-  const appointments = await prisma.appointment.findMany({
+  const scope = await clinicBySlug(DEMO_CLINIC_SLUG);
+  if (!scope) return [];
+  const appointments = await scope.db.appointment.findMany({
     where: {
       doctorId,
       date: appointmentDate,

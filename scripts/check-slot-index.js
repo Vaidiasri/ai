@@ -26,21 +26,41 @@ async function main() {
   await prisma
     .$transaction(
       async (tx) => {
-        const user = await tx.user.create({
-          data: { clerkId: tag, email: `${tag}@example.com` },
+        const clinic = await tx.clinic.create({
+          data: { slug: tag, name: "Slot Check" },
+        });
+        const branch = await tx.branch.create({
+          data: {
+            clinicId: clinic.id,
+            name: "Main",
+            address: "x",
+            city: "x",
+            latitude: 0,
+            longitude: 0,
+          },
+        });
+        const specialty = await tx.specialty.create({
+          data: { slug: tag, name: "test" },
+        });
+        const patient = await tx.clinicPatient.create({
+          data: { clinicId: clinic.id, name: "Slot Check" },
         });
         const doctor = await tx.doctor.create({
           data: {
+            clinicId: clinic.id,
+            branchId: branch.id,
+            specialtyId: specialty.id,
             name: "Slot Check",
             email: `${tag}@example.com`,
             phone: "0",
-            speciality: "test",
             imageUrl: "",
             gender: "MALE",
           },
         });
         const slot = {
-          userId: user.id,
+          clinicId: clinic.id,
+          branchId: branch.id,
+          clinicPatientId: patient.id,
           doctorId: doctor.id,
           date: new Date("2030-01-01T00:00:00Z"),
           time: "10:00",

@@ -12,7 +12,8 @@
     "db:check": "node --env-file=.env.local scripts/db-check.js",
     "db:seed": "node --env-file=.env.local scripts/seed-doctors.js",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:isolation": "node --env-file=.env.local node_modules/vitest/vitest.mjs run src/lib/tenancy.db.test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.32.2",

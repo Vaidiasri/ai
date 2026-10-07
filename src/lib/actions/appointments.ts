@@ -1,60 +1,23 @@
 "use server";
 
 import type { AppointmentStatus } from "@prisma/client";
-import { prisma } from "../prisma";
-import { requireAdmin, requireAuth } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth";
 import {
+  APPOINTMENT_INCLUDE,
+  type BookAppointmentInput,
   createAppointmentForClerkUser,
   getBookedTimeSlotsForDoctor,
-  type BookAppointmentInput,
+  transformAppointment,
 } from "@/lib/services/appointment-booking";
-import { formatStoredAppointmentDate } from "@/lib/utils/time";
-
-function transformAppointment(appointment: {
-  id: string;
-  userId: string;
-  doctorId: string;
-  date: Date;
-  time: string;
-  duration: number;
-  status: string;
-  reason: string | null;
-  notes: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  user: { firstName: string | null; lastName: string | null; email: string };
-  doctor: { name: string; imageUrl: string };
-}) {
-  return {
-    id: String(appointment.id),
-    userId: String(appointment.userId),
-    doctorId: String(appointment.doctorId),
-    patientName: String(
-      `${appointment.user.firstName || ""} ${appointment.user.lastName || ""}`.trim(),
-    ),
-    patientEmail: String(appointment.user.email || ""),
-    doctorName: String(appointment.doctor.name || ""),
-    doctorImageUrl: String(appointment.doctor.imageUrl || ""),
-    date: formatStoredAppointmentDate(appointment.date),
-    time: String(appointment.time),
-    duration: Number(appointment.duration),
-    status: String(appointment.status),
-    reason: String(appointment.reason || "General consultation"),
-    notes: String(appointment.notes || ""),
-    createdAt: appointment.createdAt.toISOString(),
-    updatedAt: appointment.updatedAt.toISOString(),
-  };
-}
+import { appointmentStatsForUser, appointmentsForUser } from "@/lib/services/patient-self";
+import { requireClinicMember } from "@/lib/tenancy";
 
 export async function getAppointments() {
   try {
-    await requireAdmin();
+    const { db } = await requireClinicMember(["OWNER"]);
 
-    const appointments = await prisma.appointment.findMany({
-      include: {
-        user: { select: { firstName: true, lastName: true, email: true } },
-        doctor: { select: { name: true, imageUrl: true } },
-      },
+    const appointments = await db.appointment.findMany({
+      include: APPOINTMENT_INCLUDE,
       orderBy: { createdAt: "desc" },
     });
 
@@ -69,19 +32,7 @@ export async function getUserAppointments() {
   try {
     const clerkId = await requireAuth();
 
-    const user = await prisma.user.findUnique({ where: { clerkId } });
-    if (!user) return [];
-
-    const appointments = await prisma.appointment.findMany({
-      where: { userId: user.id },
-      include: {
-        user: { select: { firstName: true, lastName: true, email: true } },
-        doctor: { select: { name: true, imageUrl: true } },
-      },
-      orderBy: [{ date: "asc" }, { time: "asc" }],
-    });
-
-    return appointments.map(transformAppointment);
+    return await appointmentsForUser(clerkId);
   } catch (error) {
     console.error("Error fetching user appointments:", error);
     throw new Error("Failed to fetch user appointments");
@@ -92,17 +43,7 @@ export async function getUserAppointmentStats() {
   try {
     const clerkId = await requireAuth();
 
-    const user = await prisma.user.findUnique({ where: { clerkId } });
-    if (!user) return { totalAppointments: 0, completedAppointments: 0 };
-
-    const [totalCount, completedCount] = await Promise.all([
-      prisma.appointment.count({ where: { userId: user.id } }),
-      prisma.appointment.count({
-        where: { userId: user.id, status: "COMPLETED" },
-      }),
-    ]);
-
-    return { totalAppointments: totalCount, completedAppointments: completedCount };
+    return await appointmentStatsForUser(clerkId);
   } catch (error) {
     console.error("Error fetching user stats:", error);
     return { totalAppointments: 0, completedAppointments: 0 };
@@ -135,15 +76,12 @@ export async function updateAppointmentStatus(input: {
   status: AppointmentStatus;
 }) {
   try {
-    await requireAdmin();
+    const { db } = await requireClinicMember(["OWNER"]);
 
-    const appointment = await prisma.appointment.update({
+    const appointment = await db.appointment.update({
       where: { id: input.id },
       data: { status: input.status },
-      include: {
-        user: { select: { firstName: true, lastName: true, email: true } },
-        doctor: { select: { name: true, imageUrl: true } },
-      },
+      include: APPOINTMENT_INCLUDE,
     });
 
     return transformAppointment(appointment);

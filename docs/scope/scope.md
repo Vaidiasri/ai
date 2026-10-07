@@ -20,7 +20,7 @@ _These are recommendations to keep your build orderly, not requirements. Skip an
 | 1 | Coding standards and tooling | Foundation | done |
 | 2 | Database connection and migration baseline | Foundation | in-progress |
 | 3 | Security fixes in existing code | Foundation | in-progress |
-| 4 | Multi clinic data model | Foundation | planned |
+| 4 | Multi clinic data model | Foundation | in-progress |
 | 5 | AI agent platform | Foundation | planned |
 | 6 | English and Hindi support | Foundation | planned |
 | 7 | Clinic sign up and profile | Journey 1: clinic setup | planned |
@@ -99,10 +99,20 @@ Close the holes found in the audit before real patient data arrives: doctor cont
 - [ ] Document it: `/document pr`
 spec [0002](../specs/0002-security-fixes-existing-code.md) · code `src/lib/vapi-auth.ts`, `src/lib/services/doctors.ts`, `src/app/api/vapi/tools/route.ts`
 
-### 4. Multi clinic data model · needs a decision · GA
+### 4. Multi clinic data model · GA · in-progress
 Clinics, branches, specialties, staff roles, and doctor schedules, with every patient record tied to one clinic and never visible to another.
 **Done when:** two clinics can hold doctors and appointments side by side, and no query path returns another clinic's data.
-- [ ] Design it (spec): `/architect multi clinic data model`
+- [x] Design it (spec): `/architect multi clinic data model`
+- [ ] Build it: `/develop multi clinic data model`
+  - [x] Schema and migration into the Demo clinic, live flows still working (AC-2, AC-4, AC-11, AC-12)
+  - [x] Tenancy module and every call site moved to it, patient dashboard across clinics (AC-1, AC-5, AC-7, AC-9)
+  - [x] Patient link action, platform admin clinics page, suspend and restore (AC-6, AC-8, AC-9)
+  - [x] Purge cron and the isolation guard tests (AC-1, AC-2, AC-3, AC-10)
+- [ ] Verify it: `/check verify multi clinic data model`
+- [ ] Test it: `/test multi clinic data model`
+- [ ] Review it (fresh model): `/check review multi clinic data model`
+- [ ] Document it: `/document pr`
+spec [0003](../specs/0003-multi-clinic-data-model/index.md)
 
 ### 5. AI agent platform · needs a decision
 Choose how the AI agent runs: the voice and text model providers inside free tiers, tools executed on the server, and a path off the current voice platform's one time credit.

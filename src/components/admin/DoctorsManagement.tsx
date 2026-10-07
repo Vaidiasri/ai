@@ -1,4 +1,3 @@
-import type { Doctor } from "@prisma/client";
 import {
   EditIcon,
   MailIcon,
@@ -19,6 +18,7 @@ import {
   CardTitle,
 } from "../ui/card";
 import AddDoctorDialog from "./AddDoctorDialog";
+import type { AdminDoctor } from "./EditDoctorDialog";
 import EditDoctorDialog from "./EditDoctorDialog";
 
 function DoctorsManagement() {
@@ -26,9 +26,9 @@ function DoctorsManagement() {
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+  const [selectedDoctor, setSelectedDoctor] = useState<AdminDoctor | null>(null);
 
-  const handleEditDoctor = (doctor: Doctor) => {
+  const handleEditDoctor = (doctor: AdminDoctor) => {
     setSelectedDoctor(doctor);
     setIsEditDialogOpen(true);
   };

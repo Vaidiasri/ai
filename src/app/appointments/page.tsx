@@ -1,8 +1,8 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AppointmentConfirmationModal } from "@/components/appointments/AppointmentConfirmationModal";
 import BookingConfirmationStep from "@/components/appointments/BookingConfirmationStep";
@@ -10,9 +10,6 @@ import DoctorSelectionStep from "@/components/appointments/DoctorSelectionStep";
 import ProgressSteps from "@/components/appointments/ProgressSteps";
 import TimeSelectionStep from "@/components/appointments/TimeSelectionStep";
 import Navbar from "@/components/Navbar";
-import {
-  useUserAppointments,
-} from "@/hooks/use-appointment";
 import { bookAppointment } from "@/lib/actions/appointments";
 import { APPOINTMENT_TYPES } from "@/lib/utils";
 import { formatTimeForDisplay } from "@/lib/utils/time";
@@ -31,7 +28,6 @@ function AppointmentsPage() {
 
   const [isBooking, setIsBooking] = useState(false);
   const queryClient = useQueryClient();
-  const { data: userAppointments = [], refetch: refetchUserAppointments } = useUserAppointments();
 
   const handleSelectDentist = (dentistId: string) => {
     setSelectedDentistId(dentistId);
@@ -65,7 +61,6 @@ function AppointmentsPage() {
       console.log("[CLIENT] Booking success:", appointment);
       setBookedAppointment(appointment);
 
-      refetchUserAppointments();
       queryClient.invalidateQueries({
         queryKey: ["getBookedTimeSlots", selectedDentistId, selectedDate],
       });
@@ -153,53 +148,6 @@ function AppointmentsPage() {
             userEmail: bookedAppointment.patientEmail,
           }}
         />
-      )}
-
-      {/* SHOW EXISTING APPOINTMENTS FOR THE CURRENT USER */}
-      {userAppointments.length > 0 && (
-        <div className="mb-8 max-w-7xl mx-auto px-6 py-8">
-          <h2 className="text-xl font-semibold mb-4">
-            Your Upcoming Appointments
-          </h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {userAppointments.map((appointment) => (
-              <div
-                key={appointment.id}
-                className="bg-card border rounded-lg p-4 shadow-sm"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="size-10 bg-primary/10 rounded-full flex items-center justify-center">
-                    <img
-                      src={appointment.doctorImageUrl}
-                      alt={appointment.doctorName}
-                      className="size-10 rounded-full"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">
-                      {appointment.doctorName}
-                    </p>
-                    <p className="text-muted-foreground text-xs">
-                      {appointment.reason}
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-1 text-sm">
-                  <p className="text-muted-foreground">
-                    📅{" "}
-                    {format(
-                      new Date(`${appointment.date}T12:00:00`),
-                      "MMM d, yyyy",
-                    )}
-                  </p>
-                  <p className="text-muted-foreground">
-                    🕐 {formatTimeForDisplay(appointment.time)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
     </>
   );

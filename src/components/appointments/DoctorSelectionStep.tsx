@@ -44,7 +44,10 @@ function DoctorSelectionStep({
             className={`cursor-pointer transition-all hover:shadow-lg ${
               selectedDentistId === dentist.id ? "ring-2 ring-primary" : ""
             }`}
-            onClick={() => onSelectDentist(dentist.id)}
+            onClick={() => {
+              onSelectDentist(dentist.id);
+              onContinue();
+            }}
           >
             <CardHeader className="pb-4">
               <div className="flex items-start gap-4">

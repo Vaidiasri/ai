@@ -1,5 +1,6 @@
 import { type Gender, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { forClinic } from "@/lib/tenancy";
 
 export interface DoctorSearch {
   latitude?: number;
@@ -15,10 +16,10 @@ interface DoctorRow {
   bio: string | null;
   imageUrl: string;
   gender: Gender;
-  clinicId: string | null;
+  clinicId: string;
   phone: string;
-  clinicName: string | null;
-  isPartner: boolean | null;
+  clinicName: string;
+  branchName: string;
   distance: number | null;
 }
 
@@ -29,9 +30,9 @@ export interface PublicDoctor {
   bio: string | null;
   imageUrl: string;
   gender: Gender;
-  clinicId: string | null;
-  clinicName: string | null;
-  isPartner: boolean;
+  clinicId: string;
+  clinicName: string;
+  branchName: string;
   distance: number | null;
   phone?: string;
 }
@@ -50,8 +51,8 @@ export function toPublicDoctor(
     imageUrl: row.imageUrl,
     gender: row.gender,
     clinicId: row.clinicId,
-    clinicName: row.clinicName ?? null,
-    isPartner: row.isPartner ?? false,
+    clinicName: row.clinicName,
+    branchName: row.branchName,
     distance:
       row.distance == null ? null : Math.round(Number(row.distance) * 10) / 10,
   };
@@ -59,24 +60,31 @@ export function toPublicDoctor(
   return doctor;
 }
 
+// clinicId must come from clinicBySlug, so a suspended clinic never gets here.
 export async function findAvailableDoctors(
+  clinicId: string,
   { latitude, longitude, speciality, radius = 50 }: DoctorSearch,
   { includePhone }: { includePhone: boolean },
 ): Promise<PublicDoctor[]> {
   if (latitude != null && longitude != null) {
     const radiusInDegrees = radius / 111;
-    // Bounding box first, exact distance in the outer query. LEAST guards acos
-    // against float drift above 1 when the caller stands on the clinic.
+    // Allowlisted raw query: filters d."clinicId" itself (spec 0003). Bounding
+    // box first, exact distance in the outer query. LEAST guards acos against
+    // float drift above 1 when the caller stands on the branch.
     const rows = await prisma.$queryRaw<DoctorRow[]>`
       SELECT * FROM (
-        SELECT d.id, d.name, d.speciality, d.bio, d."imageUrl", d.gender, d."clinicId", d.phone,
-          c.name AS "clinicName", c."isPartner",
-          (6371 * acos(LEAST(1.0, cos(radians(${latitude})) * cos(radians(c.latitude)) * cos(radians(c.longitude) - radians(${longitude})) + sin(radians(${latitude})) * sin(radians(c.latitude))))) AS distance
+        SELECT d.id, d.name, s.name AS speciality, d.bio, d."imageUrl", d.gender, d."clinicId", d.phone,
+          c.name AS "clinicName", b.name AS "branchName",
+          (6371 * acos(LEAST(1.0, cos(radians(${latitude})) * cos(radians(b.latitude)) * cos(radians(b.longitude) - radians(${longitude})) + sin(radians(${latitude})) * sin(radians(b.latitude))))) AS distance
         FROM doctors d
-        JOIN clinics c ON d."clinicId" = c.id
-        WHERE c.latitude BETWEEN ${latitude - radiusInDegrees} AND ${latitude + radiusInDegrees}
-          AND c.longitude BETWEEN ${longitude - radiusInDegrees} AND ${longitude + radiusInDegrees}
-          ${speciality ? Prisma.sql`AND d.speciality ILIKE ${`%${speciality}%`}` : Prisma.empty}
+        JOIN branches b ON b.id = d."branchId" AND b."clinicId" = d."clinicId"
+        JOIN clinics c ON c.id = d."clinicId"
+        JOIN specialties s ON s.id = d."specialtyId"
+        WHERE d."clinicId" = ${clinicId}
+          AND c.status = 'ACTIVE'
+          AND b.latitude BETWEEN ${latitude - radiusInDegrees} AND ${latitude + radiusInDegrees}
+          AND b.longitude BETWEEN ${longitude - radiusInDegrees} AND ${longitude + radiusInDegrees}
+          ${speciality ? Prisma.sql`AND s.name ILIKE ${`%${speciality}%`}` : Prisma.empty}
           AND d."isActive" = true
       ) nearby
       WHERE distance < ${radius}
@@ -85,33 +93,35 @@ export async function findAvailableDoctors(
     return rows.map((row) => toPublicDoctor(row, includePhone));
   }
 
-  const doctors = await prisma.doctor.findMany({
+  const doctors = await forClinic(clinicId).doctor.findMany({
     where: {
       isActive: true,
       ...(speciality && {
-        speciality: { contains: speciality, mode: "insensitive" },
+        specialty: { name: { contains: speciality, mode: "insensitive" } },
       }),
     },
     select: {
       id: true,
       name: true,
-      speciality: true,
       bio: true,
       imageUrl: true,
       gender: true,
       clinicId: true,
       phone: true,
-      clinic: { select: { name: true, isPartner: true } },
+      specialty: { select: { name: true } },
+      clinic: { select: { name: true } },
+      branch: { select: { name: true } },
     },
     orderBy: { name: "asc" },
   });
 
-  return doctors.map(({ clinic, ...d }) =>
+  return doctors.map(({ specialty, clinic, branch, ...d }) =>
     toPublicDoctor(
       {
         ...d,
-        clinicName: clinic?.name ?? null,
-        isPartner: clinic?.isPartner ?? false,
+        speciality: specialty.name,
+        clinicName: clinic.name,
+        branchName: branch.name,
         distance: null,
       },
       includePhone,
