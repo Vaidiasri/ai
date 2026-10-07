@@ -22,7 +22,11 @@ export type ToolScope = {
 const SLOT_TAKEN = "This time slot is already booked for this doctor.";
 
 const DoctorDay = z.object({
-  doctorId: z.string().min(1).max(100),
+  doctor: z
+    .string()
+    .min(1)
+    .max(100)
+    .describe("The doctor's id or exact name from list_doctors"),
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -59,11 +63,24 @@ export function buildTools({ clinicId, db, clerkId, sessionId }: ToolScope) {
     };
   }
 
-  const activeDoctor = (id: string) =>
-    db.doctor.findFirst({
-      where: { id, isActive: true },
+  // Only text survives between turns (the sanitizer drops tool results), so
+  // later turns often know the doctor only by the name shown to the patient.
+  // Null unless exactly one active doctor in this clinic matches.
+  async function findDoctor(ref: string) {
+    const found = await db.doctor.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { id: ref },
+          { name: { equals: ref.trim(), mode: "insensitive" } },
+        ],
+      },
       select: { id: true },
+      take: 2,
     });
+    return found.length === 1 ? found[0].id : null;
+  }
+  const NO_DOCTOR = { error: "doctor not found, call list_doctors" };
 
   return {
     list_doctors: tool({
@@ -90,9 +107,9 @@ export function buildTools({ clinicId, db, clerkId, sessionId }: ToolScope) {
     get_free_slots: tool({
       description: "Free HH:mm times for one doctor on one bookable date.",
       inputSchema: DoctorDay,
-      execute: run("get_free_slots", async ({ doctorId, date }) => {
-        if (!(await activeDoctor(doctorId)))
-          return { error: "doctor not found" };
+      execute: run("get_free_slots", async ({ doctor, date }) => {
+        const doctorId = await findDoctor(doctor);
+        if (!doctorId) return NO_DOCTOR;
         if (!getNext5Days().includes(date))
           return { error: "date not bookable" };
         const booked = new Set(
@@ -112,9 +129,9 @@ export function buildTools({ clinicId, db, clerkId, sessionId }: ToolScope) {
           .describe("HH:mm from get_free_slots"),
         reason: z.string().max(200).optional(),
       }),
-      execute: run("book_appointment", async (input) => {
-        if (!(await activeDoctor(input.doctorId)))
-          return { error: "doctor not found" };
+      execute: run("book_appointment", async ({ doctor, ...input }) => {
+        const doctorId = await findDoctor(doctor);
+        if (!doctorId) return NO_DOCTOR;
         // Same grid the slot tool offers, so the model cannot book off it.
         if (!getNext5Days().includes(input.date))
           return { error: "date not bookable" };
@@ -146,7 +163,7 @@ export function buildTools({ clinicId, db, clerkId, sessionId }: ToolScope) {
 
         const booked = await createAppointmentForClerkUser(
           clerkId,
-          input,
+          { ...input, doctorId },
           clinicId,
         );
         const { count } = await db.agentSession.updateMany({
