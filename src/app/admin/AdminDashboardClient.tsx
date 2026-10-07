@@ -3,6 +3,7 @@
 import { useUser } from "@clerk/nextjs";
 import { SettingsIcon } from "lucide-react";
 import AdminStats from "@/components/admin/AdminStats";
+import ClinicsManagement from "@/components/admin/ClinicsManagement";
 import DoctorsManagement from "@/components/admin/DoctorsManagement";
 import RecentAppointments from "@/components/admin/RecentAppointments";
 import Navbar from "@/components/Navbar";
@@ -65,6 +66,8 @@ function AdminDashboardClient() {
           totalAppointments={stats.totalAppointments}
           completedAppointments={stats.completedAppointments}
         />
+
+        <ClinicsManagement />
 
         <DoctorsManagement />
 

@@ -7,73 +7,172 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Tenancy (spec 0003): every model with a clinicId is clinic owned. Read and
+// write it only through forClinic() in src/lib/tenancy.ts. Composite FKs on
+// (x, clinicId) keep references inside one clinic.
+
 model User {
-  id           String        @id @default(cuid())
-  clerkId      String        @unique
-  email        String        @unique
-  firstName    String?
-  lastName     String?
-  phone        String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @default(now()) @updatedAt
-  appointments Appointment[]
+  id          String          @id @default(cuid())
+  clerkId     String          @unique
+  email       String          @unique
+  firstName   String?
+  lastName    String?
+  phone       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @default(now()) @updatedAt
+  memberships ClinicMember[]
+  patients    ClinicPatient[]
+  doctors     Doctor[]
 
   @@map("users")
 }
 
+model Specialty {
+  id      String            @id @default(cuid())
+  slug    String            @unique
+  name    String
+  nameHi  String?
+  clinics ClinicSpecialty[]
+  doctors Doctor[]
+
+  @@map("specialties")
+}
+
+model Clinic {
+  id           String            @id @default(cuid())
+  slug         String            @unique
+  name         String
+  status       ClinicStatus      @default(ACTIVE)
+  suspendedAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  branches     Branch[]
+  members      ClinicMember[]
+  specialties  ClinicSpecialty[]
+  doctors      Doctor[]
+  patients     ClinicPatient[]
+  appointments Appointment[]
+
+  @@map("clinics")
+}
+
+model Branch {
+  id           String        @id @default(cuid())
+  clinicId     String
+  name         String
+  address      String
+  city         String
+  latitude     Float
+  longitude    Float
+  timezone     String        @default("Asia/Kolkata")
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctors      Doctor[]
+  appointments Appointment[]
+
+  @@unique([id, clinicId])
+  @@index([clinicId])
+  @@map("branches")
+}
+
+model ClinicMember {
+  id        String     @id @default(cuid())
+  clinicId  String
+  userId    String
+  role      ClinicRole
+  createdAt DateTime   @default(now())
+  clinic    Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, userId])
+  @@index([userId])
+  @@map("clinic_members")
+}
+
+model ClinicSpecialty {
+  clinicId    String
+  specialtyId String
+  clinic      Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  specialty   Specialty @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+
+  @@id([clinicId, specialtyId])
+  @@map("clinic_specialties")
+}
+
+// Composite FKs use NoAction, not Restrict: same refusal for a direct delete,
+// but checked at statement end, so a clinic purge can cascade through them.
 model Doctor {
   id           String        @id @default(cuid())
+  clinicId     String
+  branchId     String
+  specialtyId  String
+  userId       String?
   name         String
-  email        String        @unique
+  email        String
   phone        String
-  speciality   String
   bio          String?
   imageUrl     String
   gender       Gender
   isActive     Boolean       @default(true)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @default(now()) @updatedAt
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  branch       Branch        @relation(fields: [branchId, clinicId], references: [id, clinicId], onDelete: NoAction)
+  specialty    Specialty     @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   appointments Appointment[]
-  clinicId     String?
-  clinic       Clinic?       @relation(fields: [clinicId], references: [id])
 
+  @@unique([id, clinicId])
+  @@unique([clinicId, email])
   @@map("doctors")
 }
 
-model Clinic {
-  id            String   @id @default(cuid())
-  name          String
-  latitude      Float
-  longitude     Float
-  googlePlaceId String?  @unique
-  isPartner     Boolean  @default(false)
-  doctors       Doctor[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+model ClinicPatient {
+  id           String        @id @default(cuid())
+  clinicId     String
+  userId       String?
+  name         String
+  phone        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  appointments Appointment[]
 
-  @@map("clinics")
+  @@unique([id, clinicId])
+  @@unique([clinicId, userId])
+  @@index([clinicId, phone])
+  @@index([userId])
+  @@map("clinic_patients")
 }
 
 model Appointment {
-  id        String            @id @default(cuid())
-  date      DateTime
-  time      String
-  duration  Int               @default(30)
-  status    AppointmentStatus @default(CONFIRMED)
-  notes     String?
-  reason    String?
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @default(now()) @updatedAt
-  userId    String
-  doctorId  String
-  doctor    Doctor            @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String            @id @default(cuid())
+  date            DateTime
+  time            String
+  duration        Int               @default(30)
+  status          AppointmentStatus @default(CONFIRMED)
+  notes           String?
+  reason          String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now()) @updatedAt
+  clinicId        String
+  branchId        String
+  doctorId        String
+  clinicPatientId String
+  clinic          Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  branch          Branch            @relation(fields: [branchId, clinicId], references: [id, clinicId], onDelete: NoAction)
+  doctor          Doctor            @relation(fields: [doctorId, clinicId], references: [id, clinicId], onDelete: NoAction)
+  clinicPatient   ClinicPatient     @relation(fields: [clinicPatientId, clinicId], references: [id, clinicId], onDelete: NoAction)
 
   @@index([doctorId, date, time])
   @@index([date])
   @@index([doctorId])
   @@index([status])
-  @@index([userId])
+  @@index([clinicId])
+  @@index([clinicPatientId])
   @@map("appointments")
 }
 
@@ -87,4 +186,15 @@ enum AppointmentStatus {
   CONFIRMED
   CANCELLED
   COMPLETED
+}
+
+enum ClinicStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ClinicRole {
+  OWNER
+  DOCTOR
+  RECEPTIONIST
 }

@@ -104,10 +104,10 @@ Clinics, branches, specialties, staff roles, and doctor schedules, with every pa
 **Done when:** two clinics can hold doctors and appointments side by side, and no query path returns another clinic's data.
 - [x] Design it (spec): `/architect multi clinic data model`
 - [ ] Build it: `/develop multi clinic data model`
-  - [ ] Schema and migration into the Demo clinic, live flows still working (AC-2, AC-4, AC-11, AC-12)
-  - [ ] Tenancy module and every call site moved to it, patient dashboard across clinics (AC-1, AC-5, AC-7, AC-9)
-  - [ ] Patient link action, platform admin clinics page, suspend and restore (AC-6, AC-8, AC-9)
-  - [ ] Purge cron and the isolation guard tests (AC-1, AC-2, AC-3, AC-10)
+  - [x] Schema and migration into the Demo clinic, live flows still working (AC-2, AC-4, AC-11, AC-12)
+  - [x] Tenancy module and every call site moved to it, patient dashboard across clinics (AC-1, AC-5, AC-7, AC-9)
+  - [x] Patient link action, platform admin clinics page, suspend and restore (AC-6, AC-8, AC-9)
+  - [x] Purge cron and the isolation guard tests (AC-1, AC-2, AC-3, AC-10)
 - [ ] Verify it: `/check verify multi clinic data model`
 - [ ] Test it: `/test multi clinic data model`
 - [ ] Review it (fresh model): `/check review multi clinic data model`

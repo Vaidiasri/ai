@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { createAppointmentForClerkUser } from "@/lib/services/appointment-booking";
+import { createAppointmentForClerkUser, demoClinic } from "@/lib/services/appointment-booking";
 import { findAvailableDoctors } from "@/lib/services/doctors";
 import { parseAppointmentDate, toCanonicalTime } from "@/lib/utils/time";
 import { verifyCallToken, verifyVapiWebhookSecret } from "@/lib/vapi-auth";
@@ -113,7 +112,9 @@ export async function POST(req: NextRequest) {
 
       try {
         if (name === "get_doctors") {
+          const { clinic } = await demoClinic();
           const doctors = await findAvailableDoctors(
+            clinic.id,
             {
               latitude: args.latitude != null ? Number(args.latitude) : undefined,
               longitude: args.longitude != null ? Number(args.longitude) : undefined,
@@ -126,7 +127,7 @@ export async function POST(req: NextRequest) {
             const docs = doctors
               .map(
                 (d) =>
-                  `${d.name} (${d.speciality})${d.clinicName ? ` at ${d.clinicName}` : ""}${d.distance != null ? ` - Distance: ${d.distance}` : ""}`,
+                  `${d.name} (${d.speciality}) at ${d.clinicName}, ${d.branchName}${d.distance != null ? ` - Distance: ${d.distance}` : ""}`,
               )
               .join(" | ");
             result = `Found these local clinics: ${docs}`;
@@ -137,7 +138,8 @@ export async function POST(req: NextRequest) {
           const userId = getCaller();
 
           if (userId) {
-            const user = await prisma.user.findUnique({ where: { clerkId: userId } });
+            const { db } = await demoClinic();
+            const user = await db.user.findUnique({ where: { clerkId: userId } });
             result = JSON.stringify({
               name: user
                 ? `${user.firstName} ${user.lastName}`.trim()
@@ -161,7 +163,8 @@ export async function POST(req: NextRequest) {
               doctorId &&
               (doctorId.includes(" ") || !doctorId.includes("-"))
             ) {
-              const doctors = await findAvailableDoctors({}, { includePhone: false });
+              const { clinic } = await demoClinic();
+              const doctors = await findAvailableDoctors(clinic.id, {}, { includePhone: false });
               const found = doctors.find(
                 (d) =>
                   d.name.toLowerCase().includes(doctorId.toLowerCase()) ||

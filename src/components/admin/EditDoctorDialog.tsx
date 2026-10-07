@@ -21,14 +21,17 @@ import {
   SelectValue,
 } from "../ui/select";
 
+// getDoctors adds the specialty name to each row.
+export type AdminDoctor = Doctor & { speciality: string };
+
 interface EditDoctorDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  doctor: Doctor | null;
+  doctor: AdminDoctor | null;
 }
 
 function EditDoctorDialog({ doctor, isOpen, onClose }: EditDoctorDialogProps) {
-  const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(doctor);
+  const [editingDoctor, setEditingDoctor] = useState<AdminDoctor | null>(doctor);
 
   const updateDoctorMutation = useUpdateDoctor();
 

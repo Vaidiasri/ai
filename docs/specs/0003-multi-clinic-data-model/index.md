@@ -1,7 +1,7 @@
 # 0003. Multi clinic data model with app enforced isolation
 
 **Date**: 2026-10-07
-**Status**: Proposed
+**Status**: In Progress
 
 ## Summary
 

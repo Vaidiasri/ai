@@ -2,6 +2,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import ActivityOverview from "@/components/dashboard/ActivityOverview";
 import MainActions from "@/components/dashboard/MainActions";
+import UpcomingAppointments from "@/components/dashboard/UpcomingAppointments";
 import WelcomeSection from "@/components/dashboard/WelcomeSection";
 import Navbar from "@/components/Navbar";
 
@@ -18,6 +19,7 @@ async function DashboardPage() {
         <WelcomeSection />
         <MainActions />
         <ActivityOverview />
+        <UpcomingAppointments />
       </div>
     </>
   );
