@@ -3,7 +3,11 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { endSession, findOwnSession } from "@/lib/services/agent-session";
+import {
+  AGENT_LIMITS,
+  endSession,
+  findOwnSession,
+} from "@/lib/services/agent-session";
 
 export const runtime = "nodejs";
 
@@ -33,11 +37,15 @@ export async function POST(req: Request) {
   if (!session)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { count } = await endSession(session, body.data.reason);
+  // The server owns the voice time cap (AC-7): past it, the end is TIME_LIMIT
+  // whatever the client sent.
+  const elapsed = (Date.now() - session.startedAt.getTime()) / 1000;
+  const endReason =
+    session.channel === "VOICE" && elapsed >= AGENT_LIMITS.voiceSeconds
+      ? "TIME_LIMIT"
+      : body.data.reason;
+  const { count } = await endSession(session, endReason);
   if (count)
-    console.log("[agent] session end", {
-      sessionId: session.id,
-      endReason: body.data.reason,
-    });
+    console.log("[agent] session end", { sessionId: session.id, endReason });
   return new Response(null, { status: 204 });
 }
