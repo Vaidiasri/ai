@@ -8,9 +8,9 @@
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
-    "db:migrate-times": "node scripts/migrate-appointment-times.js",
-    "db:migrate": "npm run db:migrate-times && prisma migrate deploy",
-    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate deploy",
+    "db:check": "node --env-file=.env.local scripts/db-check.js",
+    "db:seed": "node --env-file=.env.local scripts/seed-doctors.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
