@@ -120,7 +120,7 @@ Choose how the AI agent runs: the voice and text model providers inside free tie
 - [x] Design it (spec): `/architect AI agent platform`
 - [ ] Build it: `/develop AI agent platform`
   - [x] Session schema, start and end routes with daily limits (AC-1, AC-2, AC-9, AC-11)
-  - [ ] Clinic scoped booking tools and the chat route with policy and fallback (AC-3, AC-5, AC-6, AC-7, AC-8, AC-10, AC-14)
+  - [x] Clinic scoped booking tools and the chat route with policy and fallback (AC-3, AC-5, AC-6, AC-7, AC-8, AC-10, AC-14)
   - [ ] Text mode panel on `/voice` behind the engine flag (AC-3, AC-10, AC-11, AC-15)
   - [ ] Voice mode: transcribe, hands free turns, spoken replies, time cap, mic check (AC-4, AC-7, AC-12)
   - [ ] Purge cron extension and the Hindi model smoke test (AC-13, AC-3, AC-8)

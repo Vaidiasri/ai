@@ -1,6 +1,11 @@
 import { format } from "date-fns";
 import { sendAppointmentConfirmationEmail } from "@/lib/services/email";
-import { clinicBySlug, DEMO_CLINIC_SLUG, getOrCreateClinicPatient } from "@/lib/tenancy";
+import {
+  clinicById,
+  clinicBySlug,
+  DEMO_CLINIC_SLUG,
+  getOrCreateClinicPatient,
+} from "@/lib/tenancy";
 import {
   formatStoredAppointmentDate,
   formatTimeForDisplay,
@@ -67,6 +72,15 @@ export async function demoClinic() {
   return scope;
 }
 
+// Spec 0004: an explicit clinicId (the agent's session clinic) must still be
+// ACTIVE, so a clinic suspended mid session cannot take bookings.
+async function clinicScope(clinicId?: string) {
+  if (!clinicId) return demoClinic();
+  const scope = await clinicById(clinicId);
+  if (!scope) throw new Error(CLINIC_UNAVAILABLE);
+  return scope;
+}
+
 const BLOCKING_STATUSES = ["CONFIRMED", "COMPLETED", "PENDING"] as const;
 
 /**
@@ -76,6 +90,7 @@ const BLOCKING_STATUSES = ["CONFIRMED", "COMPLETED", "PENDING"] as const;
 export async function createAppointmentForClerkUser(
   clerkId: string,
   input: BookAppointmentInput,
+  clinicId?: string,
 ) {
   if (!clerkId?.startsWith("user_")) {
     throw new Error("Invalid user identity");
@@ -88,7 +103,7 @@ export async function createAppointmentForClerkUser(
   const normalizedDate = parseAppointmentDate(input.date);
   const normalizedTime = toCanonicalTime(input.time);
 
-  const { clinic, db } = await demoClinic();
+  const { clinic, db } = await clinicScope(clinicId);
   const user = await db.user.findUnique({ where: { clerkId } });
   if (!user) {
     throw new Error("User record not found in database");
@@ -148,11 +163,19 @@ export async function createAppointmentForClerkUser(
   }
 }
 
-export async function getBookedTimeSlotsForDoctor(doctorId: string, date: string) {
+// Without clinicId: the booking form's Demo read, [] if Demo is unavailable.
+// With clinicId: throws CLINIC_UNAVAILABLE like the booking path.
+export async function getBookedTimeSlotsForDoctor(
+  doctorId: string,
+  date: string,
+  clinicId?: string,
+) {
   const normalizedDate = parseAppointmentDate(date);
   const appointmentDate = new Date(`${normalizedDate}T12:00:00.000Z`);
 
-  const scope = await clinicBySlug(DEMO_CLINIC_SLUG);
+  const scope = clinicId
+    ? await clinicScope(clinicId)
+    : await clinicBySlug(DEMO_CLINIC_SLUG);
   if (!scope) return [];
   const appointments = await scope.db.appointment.findMany({
     where: {

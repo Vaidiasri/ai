@@ -95,6 +95,33 @@ export function findOwnSession(sessionId: string, clerkId: string) {
   });
 }
 
+// Atomic turn claim (AC-7); also saves the reply language the patient picked
+// for this turn (AC-3). False when the session ended or used all its turns.
+export async function claimTurn(
+  session: Pick<AgentSession, "id" | "clinicId">,
+  language: AgentLanguage,
+) {
+  const { count } = await forClinic(session.clinicId).agentSession.updateMany({
+    where: {
+      id: session.id,
+      endedAt: null,
+      turnCount: { lt: AGENT_LIMITS.maxTurns },
+    },
+    data: { turnCount: { increment: 1 }, language },
+  });
+  return count > 0;
+}
+
+export function setProvider(
+  session: Pick<AgentSession, "id" | "clinicId">,
+  provider: string,
+) {
+  return forClinic(session.clinicId).agentSession.updateMany({
+    where: { id: session.id },
+    data: { provider },
+  });
+}
+
 // First ending wins; later ones are no ops.
 export function endSession(
   session: Pick<AgentSession, "id" | "clinicId">,
